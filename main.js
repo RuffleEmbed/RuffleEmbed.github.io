@@ -1,3 +1,16 @@
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let playerId = localStorage.getItem('playerId');
+if (!playerId) {
+  playerId = '_' + Math.random().toString(36).substr(2, 9);
+  localStorage.setItem('playerId', playerId);
+}
+
+
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb); // Sky blue
