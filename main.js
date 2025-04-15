@@ -21,7 +21,7 @@ scene.add(plane);
 let car; // Will hold the loaded model
 
 const loader = new THREE.GLTFLoader();
-loader.load('car.glb', (gltf) => {
+loader.load('/car.glb', (gltf) => {
   car = gltf.scene;
   car.scale.set(0.5, 0.5, 0.5); // Adjust scale as needed
   car.position.set(0, 0, 0);
