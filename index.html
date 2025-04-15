@@ -21,14 +21,20 @@
       </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.19.0/dist/umd/supabase.min.js"></script>
     <script type="module">
-      import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+       import * as THREE from 'three';
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-      const supabaseClient = createClient('https://skhdesewdziqujemittx.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU');
-      import * as THREE from 'three';
-      // Wait for the DOM to be fully loaded
-      document.addEventListener("DOMContentLoaded", () => {
-        console.log("DOM loaded. Starting application...");
+  // Define your Supabase URL and Key
+  const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU'; // Replace with your actual key
 
+
+  // Initialize the Supabase client
+  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+  
+  // Wait for the DOM to be fully loaded
+  document.addEventListener("DOMContentLoaded", () => {
+    console.log("DOM loaded. Starting application...");
         try {
           // Removed WebGL check to avoid issues if THREE.WEBGL isn't available in the CDN build
 
