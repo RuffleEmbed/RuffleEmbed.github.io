@@ -114,78 +114,77 @@ document.addEventListener("DOMContentLoaded", () => {
     const otherPlayers = {};
 
     // Function to insert or update the local player's data in the "editors" table
-    async function registerPlayer() {
-      const { error } = await supabaseClient
-        .from('editors')
-        .upsert([{
-          player_id: playerId,  // Use player_id for string ID
-          x: cube.position.x,
-          y: cube.position.y,
-          z: cube.position.z,
-          rotation: cube.rotation.y,
-        }], { onConflict: ['player_id'] });
-      if (error) console.error('Error registering player:', error);
-      else console.log("Player registered/updated.");
+   // Function to insert or update the local player's data in the "editors" table
+async function registerPlayer() {
+  const { error } = await supabaseClient
+    .from('editors')
+    .upsert([{
+      player_id: playerId,  // Use player_id for string ID
+      x: cube.position.x,
+      y: cube.position.y,
+      z: cube.position.z,
+      rotation: cube.rotation.y,
+    }], { onConflict: ['player_id'] });
+  if (error) console.error('Error registering player:', error);
+  else console.log("Player registered/updated.");
+}
+
+// Function to update the local player's data in the "editors" table
+async function updatePlayerState() {
+  const { error } = await supabaseClient
+    .from('editors')
+    .update({
+      x: cube.position.x,
+      y: cube.position.y,
+      z: cube.position.z,
+      rotation: cube.rotation.y,
+    })
+    .match({ player_id: playerId });
+  if (error) console.error('Error updating player state:', error);
+  else console.log("Player state updated:", {
+    x: cube.position.x,
+    y: cube.position.y,
+    z: cube.position.z,
+    rotation: cube.rotation.y,
+  });
+}
+
+// Using select to subscribe to changes in the "editors" table
+async function getPlayersRealtime() {
+  const { data, error } = await supabaseClient
+    .from('editors')
+    .select('*')
+    .neq('player_id', playerId) // Ensure that we exclude the current player
+    .order('updated_at', { ascending: false }) // Order by the most recent
+    .limit(10); // Limit the results to avoid too many records
+
+  if (error) {
+    console.error("Error fetching players:", error);
+    return;
+  }
+
+  console.log("Realtime data:", data);
+  data.forEach(changedPlayer => {
+    if (!otherPlayers[changedPlayer.player_id]) {
+      const otherCar = new THREE.Mesh(
+        cubeGeometry,
+        new THREE.MeshStandardMaterial({ color: 0x0000ff })
+      );
+      otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
+      otherCar.rotation.y = changedPlayer.rotation;
+      scene.add(otherCar);
+      otherPlayers[changedPlayer.player_id] = otherCar;
+      console.log("Added new remote player:", changedPlayer.player_id);
+    } else {
+      const otherCar = otherPlayers[changedPlayer.player_id];
+      otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
+      otherCar.rotation.y = changedPlayer.rotation;
     }
+  });
+}
 
-    // Function to update the local player's data in the "editors" table
-    async function updatePlayerState() {
-      const { error } = await supabaseClient
-        .from('editors')
-        .update({
-          x: cube.position.x,
-          y: cube.position.y,
-          z: cube.position.z,
-          rotation: cube.rotation.y,
-        })
-        .match({ player_id: playerId });
-      if (error) console.error('Error updating player state:', error);
-      else console.log("Player state updated:", {
-        x: cube.position.x,
-        y: cube.position.y,
-        z: cube.position.z,
-        rotation: cube.rotation.y,
-      });
-    }
-
-    // Using select to subscribe to changes in the "editors" table
-    async function getPlayersRealtime() {
-      const { data, error } = await supabaseClient
-        .from('editors')
-        .select('*')
-        .eq('player_id', playerId) // Ensure that we filter by player_id
-        .order('updated_at', { ascending: false })
-        .limit(10);
-      
-      if (error) {
-        console.error("Error fetching players:", error);
-        return;
-      }
-
-      console.log("Realtime data:", data);
-      data.forEach(changedPlayer => {
-        if (changedPlayer.player_id !== playerId) {
-          console.log("Received realtime update:", changedPlayer);
-          if (!otherPlayers[changedPlayer.player_id]) {
-            const otherCar = new THREE.Mesh(
-              cubeGeometry,
-              new THREE.MeshStandardMaterial({ color: 0x0000ff })
-            );
-            otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
-            scene.add(otherCar);
-            otherPlayers[changedPlayer.player_id] = otherCar;
-            console.log("Added new remote player:", changedPlayer.player_id);
-          } else {
-            const otherCar = otherPlayers[changedPlayer.player_id];
-            otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
-            otherCar.rotation.y = changedPlayer.rotation;
-          }
-        }
-      });
-    }
-
-    // Fetch players every 1 second
-    setInterval(getPlayersRealtime, 1000);
+// Fetch players every 1 second
+setInterval(getPlayersRealtime, 1000);
 
     // Remove the player's record on unload.
     window.addEventListener('beforeunload', async () => {
