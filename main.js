@@ -43,7 +43,11 @@ let velocity = 0;
 let acceleration = 0.01;
 let maxSpeed = 0.5;
 let friction = 0.98;
-let turnSpeed = 0.04;
+
+let turnVelocity = 0;
+let turnAcceleration = 0.002;
+let turnFriction = 0.9;
+let maxTurnSpeed = 0.05;
 
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
@@ -57,14 +61,23 @@ function animate() {
 
   // Clamp speed
   velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity));
-
-  // Apply friction
   velocity *= friction;
 
-  // Turning (only if moving)
+  // Steering with smooth turn acceleration
+  if (keys["ArrowLeft"]) {
+    turnVelocity += turnAcceleration;
+  } else if (keys["ArrowRight"]) {
+    turnVelocity -= turnAcceleration;
+  } else {
+    turnVelocity *= turnFriction; // Let steering relax
+  }
+
+  // Clamp turn velocity
+  turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
+
+  // Apply turning only if moving
   if (Math.abs(velocity) > 0.001) {
-    if (keys["ArrowRight"]) cube.rotation.y += turnSpeed * (velocity < 0 ? -1 : 1);
-    if (keys["ArrowLeft"]) cube.rotation.y -= turnSpeed * (velocity < 0 ? -1 : 1);
+    cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
   }
 
   // Move car
