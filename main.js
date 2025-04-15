@@ -1,13 +1,19 @@
 // Scene setup
 const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb); // Sky blue
+
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// Grid helper (optional)
+const grid = new THREE.GridHelper(100, 100);
+scene.add(grid);
+
 // Plane
 const planeGeometry = new THREE.PlaneGeometry(100, 100);
-const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x007700 });
+const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 }); // Forest green
 const plane = new THREE.Mesh(planeGeometry, planeMaterial);
 plane.rotation.x = -Math.PI / 2;
 scene.add(plane);
@@ -20,9 +26,13 @@ cube.position.y = 0.5;
 scene.add(cube);
 
 // Lighting
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(10, 20, 10);
-scene.add(light);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); // Soft ambient light
+scene.add(ambientLight);
+
+const sun = new THREE.DirectionalLight(0xffffff, 1);
+sun.position.set(10, 20, 10);
+sun.castShadow = true;
+scene.add(sun);
 
 // Camera
 camera.position.set(0, 10, 15);
@@ -36,17 +46,19 @@ document.addEventListener("keyup", e => keys[e.key] = false);
 function animate() {
   requestAnimationFrame(animate);
 
-  // Basic driving logic
+  // Driving logic
   const speed = 0.2;
   const turnSpeed = 0.03;
 
-  if (keys["ArrowUp"]) cube.translateZ(-speed);
-  if (keys["ArrowDown"]) cube.translateZ(speed);
-  if (keys["ArrowLeft"]) cube.rotation.y += turnSpeed;
-  if (keys["ArrowRight"]) cube.rotation.y -= turnSpeed;
+  if (keys["W"]) cube.translateZ(-speed);
+  if (keys["S"]) cube.translateZ(speed);
+  if (keys["A"]) cube.rotation.y += turnSpeed;
+  if (keys["D"]) cube.rotation.y -= turnSpeed;
 
+  // Follow camera
   camera.position.x = cube.position.x + Math.sin(cube.rotation.y) * 10;
   camera.position.z = cube.position.z + Math.cos(cube.rotation.y) * 10;
+  camera.position.y = cube.position.y + 5;
   camera.lookAt(cube.position);
 
   renderer.render(scene, camera);
