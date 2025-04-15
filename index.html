@@ -10,13 +10,15 @@
     </style>
   </head>
   <body>
+    <!-- Three.js and Supabase libraries -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.19.0/dist/umd/supabase.min.js"></script>
     <script>
       // Initialize Supabase Client
-      const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co'; // Replace with your Supabase URL
-      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU'; // Replace with your Supabase public anon key
-      const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU';
+      // Use a dedicated variable to avoid naming conflicts.
+      const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
       // Setup for the player (local player)
       let playerId = localStorage.getItem('playerId');
@@ -60,11 +62,11 @@
       sun.position.set(10, 20, 10);
       scene.add(sun);
 
-      // Camera
+      // Camera initial position
       camera.position.set(0, 10, 15);
       camera.lookAt(0, 0, 0);
 
-      // Movement state
+      // Movement state variables
       let keys = {};
       let velocity = 0;
       let acceleration = 0.01;
@@ -83,9 +85,9 @@
       // Other players' data
       const otherPlayers = {};
 
-      // Function to insert player into Supabase
+      // Function to insert or update the local player's data using upsert
       async function registerPlayer() {
-        const { data, error } = await supabase
+        const { error } = await supabaseClient
           .from('players')
           .upsert([{
             id: playerId,
@@ -93,13 +95,13 @@
             y: cube.position.y,
             z: cube.position.z,
             rotation: cube.rotation.y,
-          }], { onConflict: ['id'] }); // Use upsert to create or update the player
-        if (error) console.error('Error inserting player:', error);
+          }], { onConflict: ['id'] });
+        if (error) console.error('Error registering player:', error);
       }
 
-      // Function to update player data in Supabase
+      // Function to update the local player's data in Supabase
       async function updatePlayerState() {
-        const { error } = await supabase
+        const { error } = await supabaseClient
           .from('players')
           .update({
             x: cube.position.x,
@@ -111,8 +113,8 @@
         if (error) console.error('Error updating player state:', error);
       }
 
-      // Subscribe to player data (Realtime)
-      supabase
+      // Realtime subscription to track all players
+      supabaseClient
         .from('players')
         .on('*', payload => {
           const changedPlayer = payload.new;
@@ -127,7 +129,7 @@
             scene.add(otherCar);
             otherPlayers[changedPlayer.id] = otherCar;
           } else {
-            // Update position and rotation of existing car
+            // Update position and rotation of an existing car
             const otherCar = otherPlayers[changedPlayer.id];
             otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
             otherCar.rotation.y = changedPlayer.rotation;
@@ -135,35 +137,37 @@
         })
         .subscribe();
 
-      // Function to remove player when they leave
+      // Remove player from database when window is closed
       window.addEventListener('beforeunload', async () => {
-        await supabase
+        await supabaseClient
           .from('players')
           .delete()
           .match({ id: playerId });
       });
 
+      // Throttle update to the database (update every 100ms)
+      let lastUpdate = Date.now();
+
       // Main animation loop
       function animate() {
         requestAnimationFrame(animate);
 
-        // Acceleration / Braking
+        // Movement: acceleration and braking
         if (keys["ArrowUp"]) velocity -= acceleration;
         if (keys["ArrowDown"]) velocity += acceleration;
 
-        // Clamp speed
+        // Clamp and apply friction to speed
         velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity));
         velocity *= friction;
 
-        // Steering with smooth turn acceleration
+        // Steering: smooth turn acceleration
         if (keys["ArrowRight"]) {
           turnVelocity += turnAcceleration;
         } else if (keys["ArrowLeft"]) {
           turnVelocity -= turnAcceleration;
         } else {
-          turnVelocity *= turnFriction; // Let steering relax
+          turnVelocity *= turnFriction; // Allow the steering to relax
         }
-
         // Clamp turn velocity
         turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
 
@@ -172,26 +176,27 @@
           cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
         }
 
-        // Move car
+        // Move the car
         cube.translateZ(velocity);
 
-        // Follow camera
+        // Update camera to follow the car
         camera.position.x = cube.position.x + Math.sin(cube.rotation.y) * 10;
         camera.position.z = cube.position.z + Math.cos(cube.rotation.y) * 10;
         camera.position.y = cube.position.y + 5;
         camera.lookAt(cube.position);
 
-        // Update our player state
-        updatePlayerState();
+        // Throttle database updates to every 100ms
+        if (Date.now() - lastUpdate > 100) {
+          updatePlayerState();
+          lastUpdate = Date.now();
+        }
 
         // Render the scene
         renderer.render(scene, camera);
       }
 
-      // Initial player registration
+      // Register the player and start the animation loop
       registerPlayer();
-
-      // Start the animation loop
       animate();
     </script>
   </body>
