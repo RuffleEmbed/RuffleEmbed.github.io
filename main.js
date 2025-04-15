@@ -50,10 +50,10 @@ function animate() {
   const speed = 0.2;
   const turnSpeed = 0.03;
 
-  if (keys["W"]) cube.translateZ(-speed);
-  if (keys["S"]) cube.translateZ(speed);
-  if (keys["A"]) cube.rotation.y += turnSpeed;
-  if (keys["D"]) cube.rotation.y -= turnSpeed;
+  if (keys["ArrowUp"]) cube.translateZ(-speed);
+  if (keys["ArrowDown"]) cube.translateZ(speed);
+  if (keys["ArrowLeft"]) cube.rotation.y += turnSpeed;
+  if (keys["ArrowRight"]) cube.rotation.y -= turnSpeed;
 
   // Follow camera
   camera.position.x = cube.position.x + Math.sin(cube.rotation.y) * 10;
