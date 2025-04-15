@@ -64,9 +64,9 @@ function animate() {
   velocity *= friction;
 
   // Steering with smooth turn acceleration
-  if (keys["ArrowLeft"]) {
+  if (keys["ArrowRight"]) {
     turnVelocity += turnAcceleration;
-  } else if (keys["ArrowRight"]) {
+  } else if (keys["ArrowLeft"]) {
     turnVelocity -= turnAcceleration;
   } else {
     turnVelocity *= turnFriction; // Let steering relax
