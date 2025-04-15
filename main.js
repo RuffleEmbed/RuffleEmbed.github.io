@@ -63,8 +63,8 @@ function animate() {
 
   // Turning (only if moving)
   if (Math.abs(velocity) > 0.001) {
-    if (keys["ArrowLeft"]) cube.rotation.y += turnSpeed * (velocity < 0 ? -1 : 1);
-    if (keys["ArrowRight"]) cube.rotation.y -= turnSpeed * (velocity < 0 ? -1 : 1);
+    if (keys["ArrowRight"]) cube.rotation.y += turnSpeed * (velocity < 0 ? -1 : 1);
+    if (keys["ArrowLeft"]) cube.rotation.y -= turnSpeed * (velocity < 0 ? -1 : 1);
   }
 
   // Move car
