@@ -17,17 +17,13 @@
       // Wait for the DOM to be fully loaded
       document.addEventListener("DOMContentLoaded", () => {
         console.log("DOM loaded. Starting application...");
+
         try {
-          // Check if the browser supports WebGL
-          if (!THREE.WEBGL.isWebGLAvailable()) {
-            const warning = THREE.WEBGL.getWebGLErrorMessage();
-            document.body.appendChild(warning);
-            throw new Error("WebGL not supported");
-          }
+          // Removed WebGL check to avoid issues if THREE.WEBGL isn't available in the CDN build
 
           // Initialize Supabase Client
           const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
-          const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3NDE3MzQsImV4cCI6MjA2MDMxNzczNH0.cAcZRnhse7FAszZGDf2XAmDzzX3n9emAmcZvBGo3nkA';
+          const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU';
           const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
           // Setup for the local player.
@@ -45,6 +41,7 @@
             0.1,
             1000
           );
+
           const renderer = new THREE.WebGLRenderer({ antialias: true });
           renderer.setSize(window.innerWidth, window.innerHeight);
           document.body.appendChild(renderer.domElement);
@@ -54,6 +51,7 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            console.log("Window resized.");
           });
 
           // Add grid, plane, and car (cube)
@@ -79,7 +77,7 @@
           directionalLight.position.set(10, 20, 10);
           scene.add(directionalLight);
 
-          // Camera positioning
+          // Initial camera positioning
           camera.position.set(0, 10, 15);
           camera.lookAt(0, 0, 0);
 
@@ -142,7 +140,7 @@
               const changedPlayer = payload.new;
               // Skip if it's the local player.
               if (changedPlayer.id === playerId) return;
-              // Log received payload for debugging.
+
               console.log("Received realtime update:", changedPlayer);
               if (!otherPlayers[changedPlayer.id]) {
                 const otherCar = new THREE.Mesh(
@@ -191,7 +189,6 @@
             }
             turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
 
-            // Rotate the cube only if there is movement
             if (Math.abs(velocity) > 0.001) {
               cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
             }
