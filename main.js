@@ -18,12 +18,18 @@ const plane = new THREE.Mesh(planeGeometry, planeMaterial);
 plane.rotation.x = -Math.PI / 2;
 scene.add(plane);
 
-// Cube (Car)
-const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
-const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-cube.position.y = 0.5;
-scene.add(cube);
+let car; // Will hold the loaded model
+
+const loader = new THREE.GLTFLoader();
+loader.load('car.glb', (gltf) => {
+  car = gltf.scene;
+  car.scale.set(0.5, 0.5, 0.5); // Adjust scale as needed
+  car.position.set(0, 0, 0);
+  scene.add(car);
+}, undefined, (error) => {
+  console.error('Error loading model:', error);
+});
+
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
@@ -53,43 +59,42 @@ document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
 function animate() {
-  requestAnimationFrame(animate);
-
-  // Acceleration / Braking
-  if (keys["ArrowUp"]) velocity -= acceleration;
-  if (keys["ArrowDown"]) velocity += acceleration;
-
-  // Clamp speed
-  velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity));
-  velocity *= friction;
-
-  // Steering with smooth turn acceleration
-  if (keys["ArrowRight"]) {
-    turnVelocity += turnAcceleration;
-  } else if (keys["ArrowLeft"]) {
-    turnVelocity -= turnAcceleration;
-  } else {
-    turnVelocity *= turnFriction; // Let steering relax
+    requestAnimationFrame(animate);
+  
+    if (!car) return; // Wait until car is loaded
+  
+    // Acceleration / Braking
+    if (keys["ArrowUp"]) velocity -= acceleration;
+    if (keys["ArrowDown"]) velocity += acceleration;
+    velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity));
+    velocity *= friction;
+  
+    // Steering with smooth turn acceleration
+    if (keys["ArrowRight"]) {
+      turnVelocity += turnAcceleration;
+    } else if (keys["ArrowLeft"]) {
+      turnVelocity -= turnAcceleration;
+    } else {
+      turnVelocity *= turnFriction;
+    }
+  
+    turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
+  
+    if (Math.abs(velocity) > 0.001) {
+      car.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
+    }
+  
+    // Move car
+    car.translateZ(velocity);
+  
+    // Follow camera
+    camera.position.x = car.position.x + Math.sin(car.rotation.y) * 10;
+    camera.position.z = car.position.z + Math.cos(car.rotation.y) * 10;
+    camera.position.y = car.position.y + 5;
+    camera.lookAt(car.position);
+  
+    renderer.render(scene, camera);
   }
-
-  // Clamp turn velocity
-  turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
-
-  // Apply turning only if moving
-  if (Math.abs(velocity) > 0.001) {
-    cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
-  }
-
-  // Move car
-  cube.translateZ(velocity);
-
-  // Follow camera
-  camera.position.x = cube.position.x + Math.sin(cube.rotation.y) * 10;
-  camera.position.z = cube.position.z + Math.cos(cube.rotation.y) * 10;
-  camera.position.y = cube.position.y + 5;
-  camera.lookAt(cube.position);
-
-  renderer.render(scene, camera);
-}
+  
 
 animate();
