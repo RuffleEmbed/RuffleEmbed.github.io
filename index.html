@@ -8,9 +8,7 @@
       body { margin: 0; overflow: hidden; }
       canvas { display: block; }
     </style>
-  </head>
-  <body>
-    <!-- Three.js and Supabase libraries -->
+    <!-- Import map for Three.js -->
     <script type="importmap">
       {
         "imports": {
@@ -19,259 +17,231 @@
         }
       }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.19.0/dist/umd/supabase.min.js"></script>
+  </head>
+  <body>
+    <!-- Do not include the UMD version of supabase-js -->
     <script type="module">
       import * as THREE from 'three';
       import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-      // Define your Supabase URL and Key
-      // Define your Supabase URL and Key
-// Define your Supabase URL and Key
-const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU'; // Replace with your actual key
+      // Supabase configuration
+      const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU';
 
-// Initialize the Supabase client
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+      // Initialize Supabase client using the module version
+      const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Declare playerId globally
-let playerId = localStorage.getItem('playerId') || '_' + Math.random().toString(36).substr(2, 9); // Random string
-localStorage.setItem('playerId', playerId);
-console.log("Player ID:", playerId);
+      // Generate a unique player ID as a string and save in localStorage
+      let playerId = localStorage.getItem('playerId') || '_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('playerId', playerId);
+      console.log("Player ID:", playerId);
 
-// Wait for the DOM to be fully loaded
-document.addEventListener("DOMContentLoaded", () => {
-  console.log("DOM loaded. Starting application...");
-  
-  try {
-    // Setup for the local player.
-    console.log("Player ID (inside DOMContentLoaded):", playerId); // Just to check if it's accessible here
+      document.addEventListener("DOMContentLoaded", () => {
+        console.log("DOM loaded. Starting application...");
 
-    // Scene setup using Three.js
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb); // Sky blue
+        try {
+          // Three.js scene setup
+          const scene = new THREE.Scene();
+          scene.background = new THREE.Color(0x87ceeb); // Sky blue
 
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      1000
-    );
+          const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+          const renderer = new THREE.WebGLRenderer({ antialias: true });
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          document.body.appendChild(renderer.domElement);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+          window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+          });
 
-    // Handle window resize
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      console.log("Window resized.");
-    });
+          // Add grid and plane
+          const grid = new THREE.GridHelper(100, 100);
+          scene.add(grid);
 
-    // Add grid, plane, and car (cube)
-    const grid = new THREE.GridHelper(100, 100);
-    scene.add(grid);
+          const planeGeometry = new THREE.PlaneGeometry(100, 100);
+          const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+          const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+          plane.rotation.x = -Math.PI / 2;
+          scene.add(plane);
 
-    const planeGeometry = new THREE.PlaneGeometry(100, 100);
-    const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
-    const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-    plane.rotation.x = -Math.PI / 2;
-    scene.add(plane);
+          // Local player's car (red cube)
+          const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
+          const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+          const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+          cube.position.y = 0.5;
+          scene.add(cube);
 
-    const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
-    const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-    const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-    cube.position.y = 0.5;
-    scene.add(cube);
+          // Lighting
+          const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+          scene.add(ambientLight);
+          const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+          directionalLight.position.set(10, 20, 10);
+          scene.add(directionalLight);
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-    scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(10, 20, 10);
-    scene.add(directionalLight);
+          // Initial camera positioning
+          camera.position.set(0, 10, 15);
+          camera.lookAt(0, 0, 0);
 
-    // Initial camera positioning
-    camera.position.set(0, 10, 15);
-    camera.lookAt(0, 0, 0);
+          // Movement variables for local player
+          let keys = {};
+          let velocity = 0;
+          const acceleration = 0.01;
+          const maxSpeed = 0.5;
+          const friction = 0.98;
+          let turnVelocity = 0;
+          const turnAcceleration = 0.002;
+          const turnFriction = 0.9;
+          const maxTurnSpeed = 0.05;
 
-    // Movement state variables
-    let keys = {};
-    let velocity = 0;
-    const acceleration = 0.01;
-    const maxSpeed = 0.5;
-    const friction = 0.98;
-    let turnVelocity = 0;
-    const turnAcceleration = 0.002;
-    const turnFriction = 0.9;
-    const maxTurnSpeed = 0.05;
+          window.addEventListener('keydown', (e) => { keys[e.key] = true; });
+          window.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
-    window.addEventListener('keydown', e => { keys[e.key] = true; });
-    window.addEventListener('keyup', e => { keys[e.key] = false; });
+          // Object to store remote players’ cubes
+          const otherPlayers = {};
 
-    // Data for other players
-    const otherPlayers = {};
-
-    // Function to insert or update the local player's data in the "editors" table
-    async function registerPlayer() {
-  try {
-    // Check if the player already exists
-    const { data, error } = await supabaseClient
-      .from('editors')
-      .select('id')
-      .eq('id', playerId)
-      .single();
-
-    if (error && error.code !== 'P0001') { // Error code for no row found
-      console.error('Error checking if player exists:', error);
-      return;
-    }
-
-    // If no data found, insert a new player
-    if (!data) {
-      const { error: insertError } = await supabaseClient
-        .from('editors')
-        .insert([{
-          id: playerId,
-          x: cube.position.x,
-          y: cube.position.y,
-          z: cube.position.z,
-          rotation: cube.rotation.y,
-        }]);
-
-      if (insertError) {
-        console.error('Error inserting player:', insertError);
-      } else {
-        console.log("Player inserted successfully.");
-      }
-    } else {
-      console.log("Player already exists, no need to insert.");
-    }
-  } catch (err) {
-    console.error("Error registering player:", err);
-  }
-}
-
-
-    // Function to update the local player's data in the "editors" table
-    async function updatePlayerState() {
-      const { error } = await supabaseClient
-        .from('editors')
-        .update({
-          x: cube.position.x,
-          y: cube.position.y,
-          z: cube.position.z,
-          rotation: cube.rotation.y,
-        })
-        .match({ player_id: playerId });
-      if (error) console.error('Error updating player state:', error);
-      else console.log("Player state updated:", {
-        x: cube.position.x,
-        y: cube.position.y,
-        z: cube.position.z,
-        rotation: cube.rotation.y,
-      });
-    }
-
-    // Using select to subscribe to changes in the "editors" table
-    async function getPlayersRealtime() {
-      const { data, error } = await supabaseClient
-        .from('editors')
-        .select('*')
-        .eq('player_id', playerId) // Ensure that we filter by player_id
-        .order('updated_at', { ascending: false })
-        .limit(10);
-      
-      if (error) {
-        console.error("Error fetching players:", error);
-        return;
-      }
-
-      console.log("Realtime data:", data);
-      data.forEach(changedPlayer => {
-        if (changedPlayer.player_id !== playerId) {
-          console.log("Received realtime update:", changedPlayer);
-          if (!otherPlayers[changedPlayer.player_id]) {
-            const otherCar = new THREE.Mesh(
-              cubeGeometry,
-              new THREE.MeshStandardMaterial({ color: 0x0000ff })
-            );
-            otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
-            scene.add(otherCar);
-            otherPlayers[changedPlayer.player_id] = otherCar;
-            console.log("Added new remote player:", changedPlayer.player_id);
-          } else {
-            const otherCar = otherPlayers[changedPlayer.player_id];
-            otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
-            otherCar.rotation.y = changedPlayer.rotation;
+          // Register the local player using player_id (a text column in Supabase)
+          async function registerPlayer() {
+            try {
+              const { error } = await supabaseClient
+                .from('editors')
+                .upsert([{
+                  player_id: playerId,
+                  x: cube.position.x,
+                  y: cube.position.y,
+                  z: cube.position.z,
+                  rotation: cube.rotation.y,
+                }], { onConflict: ['player_id'] });
+              if (error) {
+                console.error("Error registering player:", error);
+              } else {
+                console.log("Player registered/updated.");
+              }
+            } catch (err) {
+              console.error("Error in registerPlayer:", err);
+            }
           }
+
+          // Update the local player's state in the database
+          async function updatePlayerState() {
+            try {
+              const { error } = await supabaseClient
+                .from('editors')
+                .update({
+                  x: cube.position.x,
+                  y: cube.position.y,
+                  z: cube.position.z,
+                  rotation: cube.rotation.y,
+                })
+                .match({ player_id: playerId });
+              if (error) {
+                console.error("Error updating player state:", error);
+              } else {
+                console.log("Player state updated.");
+              }
+            } catch (err) {
+              console.error("Error in updatePlayerState:", err);
+            }
+          }
+
+          // Polling function to fetch remote players (excluding the local player)
+          async function getPlayersRealtime() {
+            try {
+              const { data, error } = await supabaseClient
+                .from('editors')
+                .select('*')
+                .neq('player_id', playerId)
+                .limit(10);
+              if (error) {
+                console.error("Error fetching players:", error);
+                return;
+              }
+
+              data.forEach((changedPlayer) => {
+                if (!otherPlayers[changedPlayer.player_id]) {
+                  // Create a new cube for the remote player (blue cube)
+                  const otherCar = new THREE.Mesh(
+                    cubeGeometry,
+                    new THREE.MeshStandardMaterial({ color: 0x0000ff })
+                  );
+                  otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
+                  otherCar.rotation.y = changedPlayer.rotation;
+                  scene.add(otherCar);
+                  otherPlayers[changedPlayer.player_id] = otherCar;
+                  console.log("Added new remote player:", changedPlayer.player_id);
+                } else {
+                  // Update the position/rotation of the existing remote player's cube
+                  const otherCar = otherPlayers[changedPlayer.player_id];
+                  otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
+                  otherCar.rotation.y = changedPlayer.rotation;
+                }
+              });
+            } catch (err) {
+              console.error("Error in getPlayersRealtime:", err);
+            }
+          }
+
+          // Poll for remote players every 1 second
+          setInterval(getPlayersRealtime, 1000);
+
+          // Remove the local player's record on unload
+          window.addEventListener('beforeunload', async () => {
+            try {
+              await supabaseClient
+                .from('editors')
+                .delete()
+                .match({ player_id: playerId });
+            } catch (err) {
+              console.error("Error deleting player:", err);
+            }
+          });
+
+          // Animation loop for moving the local player's car and updating state
+          let lastUpdate = Date.now();
+          function animate() {
+            requestAnimationFrame(animate);
+
+            if (keys["ArrowUp"]) velocity -= acceleration;
+            if (keys["ArrowDown"]) velocity += acceleration;
+            velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity));
+            velocity *= friction;
+
+            if (keys["ArrowRight"]) {
+              turnVelocity += turnAcceleration;
+            } else if (keys["ArrowLeft"]) {
+              turnVelocity -= turnAcceleration;
+            } else {
+              turnVelocity *= turnFriction;
+            }
+            turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
+
+            if (Math.abs(velocity) > 0.001) {
+              cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
+            }
+            cube.translateZ(velocity);
+
+            // Make the camera follow the car
+            camera.position.x = cube.position.x + Math.sin(cube.rotation.y) * 10;
+            camera.position.z = cube.position.z + Math.cos(cube.rotation.y) * 10;
+            camera.position.y = cube.position.y + 5;
+            camera.lookAt(cube.position);
+
+            // Update player state every 100ms
+            if (Date.now() - lastUpdate > 100) {
+              updatePlayerState();
+              lastUpdate = Date.now();
+            }
+
+            renderer.render(scene, camera);
+          }
+
+          registerPlayer();
+          animate();
+
+        } catch (err) {
+          console.error("Error in main application logic:", err);
         }
       });
-    }
-
-    // Fetch players every 1 second
-    setInterval(getPlayersRealtime, 1000);
-
-    // Remove the player's record on unload.
-    window.addEventListener('beforeunload', async () => {
-      await supabaseClient
-        .from('editors')
-        .delete()
-        .match({ player_id: playerId });
-    });
-
-    // Throttle updates to avoid flooding the database.
-    let lastUpdate = Date.now();
-
-    // Animation loop with movement logic
-    function animate() {
-      requestAnimationFrame(animate);
-
-      // Movement controls
-      if (keys["ArrowUp"]) velocity -= acceleration;
-      if (keys["ArrowDown"]) velocity += acceleration;
-      velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity));
-      velocity *= friction;
-
-      if (keys["ArrowRight"]) {
-        turnVelocity += turnAcceleration;
-      } else if (keys["ArrowLeft"]) {
-        turnVelocity -= turnAcceleration;
-      } else {
-        turnVelocity *= turnFriction;
-      }
-      turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
-
-      if (Math.abs(velocity) > 0.001) {
-        cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
-      }
-      cube.translateZ(velocity);
-
-      // Make the camera follow the car
-      camera.position.x = cube.position.x + Math.sin(cube.rotation.y) * 10;
-      camera.position.z = cube.position.z + Math.cos(cube.rotation.y) * 10;
-      camera.position.y = cube.position.y + 5;
-      camera.lookAt(cube.position);
-
-      // Update the player's position in the database every 100ms
-      if (Date.now() - lastUpdate > 100) {
-        updatePlayerState();
-        lastUpdate = Date.now();
-      }
-
-      renderer.render(scene, camera);
-    }
-
-    // Register the player and start the animation loop.
-    registerPlayer();
-    animate();
-
-  } catch (err) {
-    console.error("Error in main application logic:", err);
-  }
-});
-
     </script>
   </body>
 </html>
