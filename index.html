@@ -2,112 +2,34 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>3D Car Demo</title>
-  <style>
-    body { margin: 0; overflow: hidden; }
-    canvas { display: block; }
-  </style>
-  <!-- THREE.js core -->
+  <title>Three.js Test</title>
+  <style> body { margin: 0; overflow: hidden; } </style>
   <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-  <!-- GLTFLoader -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
-  <script>
-    let scene, camera, renderer;
-    let car = null;
+<script>
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
 
-    // Controls
-    let keys = {};
-    let velocity = 0;
-    const acceleration = 0.01;
-    const maxSpeed = 0.5;
-    const friction = 0.98;
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.z = 5;
 
-    let turnVelocity = 0;
-    const turnAcceleration = 0.002;
-    const turnFriction = 0.9;
-    const maxTurnSpeed = 0.05;
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
 
-    init();
-    animate();
+  const geometry = new THREE.BoxGeometry();
+  const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const cube = new THREE.Mesh(geometry, material);
+  scene.add(cube);
 
-    function init() {
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x87ceeb); // sky blue
-
-      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
-
-      // Plane
-      const planeGeo = new THREE.PlaneGeometry(100, 100);
-      const planeMat = new THREE.MeshStandardMaterial({ color: 0x228B22 });
-      const plane = new THREE.Mesh(planeGeo, planeMat);
-      plane.rotation.x = -Math.PI / 2;
-      scene.add(plane);
-
-      // Light
-      const ambient = new THREE.AmbientLight(0xffffff, 0.4);
-      scene.add(ambient);
-      const sun = new THREE.DirectionalLight(0xffffff, 1);
-      sun.position.set(10, 20, 10);
-      scene.add(sun);
-
-      // Load the car model
-      const loader = new THREE.GLTFLoader();
-      loader.load('car.glb', (gltf) => {
-        car = gltf.scene;
-        car.scale.set(1.5, 1.5, 1.5);
-        car.position.set(0, 0.1, 0);
-        scene.add(car);
-      }, undefined, (error) => {
-        console.error("Failed to load model:", error);
-      });
-
-      // Input
-      window.addEventListener("keydown", (e) => keys[e.key] = true);
-      window.addEventListener("keyup", (e) => keys[e.key] = false);
-    }
-
-    function animate() {
-      requestAnimationFrame(animate);
-
-      if (car) {
-        // Movement
-        if (keys["ArrowUp"]) velocity -= acceleration;
-        if (keys["ArrowDown"]) velocity += acceleration;
-        velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity));
-        velocity *= friction;
-
-        // Turning
-        if (keys["ArrowLeft"]) {
-          turnVelocity += turnAcceleration;
-        } else if (keys["ArrowRight"]) {
-          turnVelocity -= turnAcceleration;
-        } else {
-          turnVelocity *= turnFriction;
-        }
-        turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
-
-        // Only turn if moving
-        if (Math.abs(velocity) > 0.001) {
-          car.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
-        }
-
-        // Move car
-        car.translateZ(velocity);
-
-        // Camera follow
-        camera.position.x = car.position.x + Math.sin(car.rotation.y) * 10;
-        camera.position.z = car.position.z + Math.cos(car.rotation.y) * 10;
-        camera.position.y = car.position.y + 5;
-        camera.lookAt(car.position);
-      }
-
-      renderer.render(scene, camera);
-    }
-  </script>
+  function animate() {
+    requestAnimationFrame(animate);
+    cube.rotation.x += 0.01;
+    cube.rotation.y += 0.01;
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
 </body>
 </html>
