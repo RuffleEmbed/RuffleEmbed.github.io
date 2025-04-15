@@ -11,7 +11,14 @@
   </head>
   <body>
     <!-- Three.js and Supabase libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@<version>/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@<version>/examples/jsm/"
+        }
+      }
+      </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.19.0/dist/umd/supabase.min.js"></script>
     <script>
       // Wait for the DOM to be fully loaded
