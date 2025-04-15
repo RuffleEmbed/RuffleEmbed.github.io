@@ -14,13 +14,14 @@
     <script type="importmap">
       {
         "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@<version>/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@<version>/examples/jsm/"
+          "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
         }
       }
       </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.19.0/dist/umd/supabase.min.js"></script>
-    <script>
+    <script type="module">
+      import * as THREE from 'three';
       // Wait for the DOM to be fully loaded
       document.addEventListener("DOMContentLoaded", () => {
         console.log("DOM loaded. Starting application...");
