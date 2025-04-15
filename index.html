@@ -26,6 +26,7 @@
 
       // Define your Supabase URL and Key
       // Define your Supabase URL and Key
+// Define your Supabase URL and Key
 const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU'; // Replace with your actual key
 
@@ -147,30 +148,44 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
-    // Realtime updates for other players
-    supabaseClient
-      .from('editors')
-      .on('*', payload => {
-        const changedPlayer = payload.new;
-        if (changedPlayer.player_id === playerId) return; // Skip if it's the local player
+    // Using select to subscribe to changes in the "editors" table
+    async function getPlayersRealtime() {
+      const { data, error } = await supabaseClient
+        .from('editors')
+        .select('*')
+        .eq('player_id', playerId) // Ensure that we filter by player_id
+        .order('updated_at', { ascending: false })
+        .limit(10);
+      
+      if (error) {
+        console.error("Error fetching players:", error);
+        return;
+      }
 
-        console.log("Received realtime update:", changedPlayer);
-        if (!otherPlayers[changedPlayer.player_id]) {
-          const otherCar = new THREE.Mesh(
-            cubeGeometry,
-            new THREE.MeshStandardMaterial({ color: 0x0000ff })
-          );
-          otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
-          scene.add(otherCar);
-          otherPlayers[changedPlayer.player_id] = otherCar;
-          console.log("Added new remote player:", changedPlayer.player_id);
-        } else {
-          const otherCar = otherPlayers[changedPlayer.player_id];
-          otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
-          otherCar.rotation.y = changedPlayer.rotation;
+      console.log("Realtime data:", data);
+      data.forEach(changedPlayer => {
+        if (changedPlayer.player_id !== playerId) {
+          console.log("Received realtime update:", changedPlayer);
+          if (!otherPlayers[changedPlayer.player_id]) {
+            const otherCar = new THREE.Mesh(
+              cubeGeometry,
+              new THREE.MeshStandardMaterial({ color: 0x0000ff })
+            );
+            otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
+            scene.add(otherCar);
+            otherPlayers[changedPlayer.player_id] = otherCar;
+            console.log("Added new remote player:", changedPlayer.player_id);
+          } else {
+            const otherCar = otherPlayers[changedPlayer.player_id];
+            otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
+            otherCar.rotation.y = changedPlayer.rotation;
+          }
         }
-      })
-      .subscribe();
+      });
+    }
+
+    // Fetch players every 1 second
+    setInterval(getPlayersRealtime, 1000);
 
     // Remove the player's record on unload.
     window.addEventListener('beforeunload', async () => {
