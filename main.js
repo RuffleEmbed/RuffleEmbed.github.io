@@ -1,89 +1,95 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js';
-
+// Scene setup
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
+scene.background = new THREE.Color(0x87ceeb); // Sky blue
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 5, 10);
-camera.lookAt(0, 0, 0);
-
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-dirLight.position.set(10, 20, 10);
-scene.add(dirLight);
+// Grid helper (optional)
+const grid = new THREE.GridHelper(100, 100);
+scene.add(grid);
 
-// Ground
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(100, 100),
-  new THREE.MeshStandardMaterial({ color: 0x228B22 })
-);
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
+// Plane
+const planeGeometry = new THREE.PlaneGeometry(100, 100);
+const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+plane.rotation.x = -Math.PI / 2;
+scene.add(plane);
 
-// Load car model
-const loader = new GLTFLoader();
-loader.load(
-  'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/SimpleCar/glTF-Binary/SimpleCar.glb',
-  gltf => {
-    const car = gltf.scene;
-    car.scale.set(1.5, 1.5, 1.5);
-    car.position.y = 0.1;
-    scene.add(car);
+// Cube (Car)
+const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
+const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+cube.position.y = 0.5;
+scene.add(cube);
 
-    animate(car);
-  },
-  undefined,
-  err => {
-    console.error('Error loading GLB model:', err);
-  }
-);
+// Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+
+const sun = new THREE.DirectionalLight(0xffffff, 1);
+sun.position.set(10, 20, 10);
+scene.add(sun);
+
+// Camera
+camera.position.set(0, 10, 15);
+camera.lookAt(0, 0, 0);
 
 // Movement state
-const keys = {};
+let keys = {};
 let velocity = 0;
-const accel = 0.01;
-const maxSpeed = 0.5;
-const friction = 0.98;
+let acceleration = 0.01;
+let maxSpeed = 0.5;
+let friction = 0.98;
+
 let turnVelocity = 0;
-const turnAccel = 0.002;
-const turnFriction = 0.9;
-const maxTurn = 0.05;
+let turnAcceleration = 0.002;
+let turnFriction = 0.9;
+let maxTurnSpeed = 0.05;
 
-window.addEventListener("keydown", e => keys[e.key] = true);
-window.addEventListener("keyup", e => keys[e.key] = false);
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
 
-// Animate with car
-function animate(car) {
-  requestAnimationFrame(() => animate(car));
+function animate() {
+  requestAnimationFrame(animate);
 
-  if (keys["ArrowUp"]) velocity -= accel;
-  if (keys["ArrowDown"]) velocity += accel;
+  // Acceleration / Braking
+  if (keys["ArrowUp"]) velocity -= acceleration;
+  if (keys["ArrowDown"]) velocity += acceleration;
+
+  // Clamp speed
   velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity));
   velocity *= friction;
 
-  if (keys["ArrowLeft"]) turnVelocity -= turnAccel;
-  else if (keys["ArrowRight"]) turnVelocity += turnAccel;
-  else turnVelocity *= turnFriction;
-
-  turnVelocity = Math.max(-maxTurn, Math.min(maxTurn, turnVelocity));
-
-  if (Math.abs(velocity) > 0.001) {
-    car.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
+  // Steering with smooth turn acceleration
+  if (keys["ArrowRight"]) {
+    turnVelocity += turnAcceleration;
+  } else if (keys["ArrowLeft"]) {
+    turnVelocity -= turnAcceleration;
+  } else {
+    turnVelocity *= turnFriction; // Let steering relax
   }
 
-  car.translateZ(velocity);
+  // Clamp turn velocity
+  turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
 
-  // Camera follows car
-  camera.position.x = car.position.x + Math.sin(car.rotation.y) * 10;
-  camera.position.z = car.position.z + Math.cos(car.rotation.y) * 10;
-  camera.position.y = car.position.y + 5;
-  camera.lookAt(car.position);
+  // Apply turning only if moving
+  if (Math.abs(velocity) > 0.001) {
+    cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
+  }
+
+  // Move car
+  cube.translateZ(velocity);
+
+  // Follow camera
+  camera.position.x = cube.position.x + Math.sin(cube.rotation.y) * 10;
+  camera.position.z = cube.position.z + Math.cos(cube.rotation.y) * 10;
+  camera.position.y = cube.position.y + 5;
+  camera.lookAt(cube.position);
 
   renderer.render(scene, camera);
 }
+
+animate();
