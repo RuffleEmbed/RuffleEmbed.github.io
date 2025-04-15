@@ -142,31 +142,39 @@
           });
         }
 
-        // Realtime subscription from the "editors" table
-        supabaseClient
-          .from('editors')
-          .on('UPDATE', payload => {
-            const changedPlayer = payload.new;
-            // Skip if it's the local player.
-            if (changedPlayer.id === playerId) return;
+        // Polling function to periodically fetch the latest players
+        async function pollPlayers() {
+          const { data, error } = await supabaseClient
+            .from('editors')
+            .select('*');
+          if (error) {
+            console.error('Error fetching players:', error);
+            return;
+          }
 
-            console.log("Received realtime update:", changedPlayer);
-            if (!otherPlayers[changedPlayer.id]) {
-              const otherCar = new THREE.Mesh(
-                cubeGeometry,
-                new THREE.MeshStandardMaterial({ color: 0x0000ff })
-              );
-              otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
-              scene.add(otherCar);
-              otherPlayers[changedPlayer.id] = otherCar;
-              console.log("Added new remote player:", changedPlayer.id);
-            } else {
-              const otherCar = otherPlayers[changedPlayer.id];
-              otherCar.position.set(changedPlayer.x, changedPlayer.y, changedPlayer.z);
-              otherCar.rotation.y = changedPlayer.rotation;
+          // Update or add other players
+          data.forEach(player => {
+            if (player.id !== playerId) {
+              if (!otherPlayers[player.id]) {
+                const otherCar = new THREE.Mesh(
+                  cubeGeometry,
+                  new THREE.MeshStandardMaterial({ color: 0x0000ff })
+                );
+                otherCar.position.set(player.x, player.y, player.z);
+                scene.add(otherCar);
+                otherPlayers[player.id] = otherCar;
+                console.log("Added new remote player:", player.id);
+              } else {
+                const otherCar = otherPlayers[player.id];
+                otherCar.position.set(player.x, player.y, player.z);
+                otherCar.rotation.y = player.rotation;
+              }
             }
-          })
-          .subscribe();
+          });
+        }
+
+        // Set interval to poll every 100ms
+        setInterval(pollPlayers, 100);
 
         // Remove the player's record on unload.
         window.addEventListener('beforeunload', async () => {
