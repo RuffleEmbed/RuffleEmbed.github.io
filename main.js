@@ -13,7 +13,7 @@ scene.add(grid);
 
 // Plane
 const planeGeometry = new THREE.PlaneGeometry(100, 100);
-const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 }); // Forest green
+const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
 const plane = new THREE.Mesh(planeGeometry, planeMaterial);
 plane.rotation.x = -Math.PI / 2;
 scene.add(plane);
@@ -26,34 +26,49 @@ cube.position.y = 0.5;
 scene.add(cube);
 
 // Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); // Soft ambient light
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
 scene.add(ambientLight);
 
 const sun = new THREE.DirectionalLight(0xffffff, 1);
 sun.position.set(10, 20, 10);
-sun.castShadow = true;
 scene.add(sun);
 
 // Camera
 camera.position.set(0, 10, 15);
 camera.lookAt(0, 0, 0);
 
-// Movement
+// Movement state
 let keys = {};
+let velocity = 0;
+let acceleration = 0.01;
+let maxSpeed = 0.5;
+let friction = 0.98;
+let turnSpeed = 0.04;
+
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
 function animate() {
   requestAnimationFrame(animate);
 
-  // Driving logic
-  const speed = 0.2;
-  const turnSpeed = 0.03;
+  // Acceleration / Braking
+  if (keys["ArrowUp"]) velocity -= acceleration;
+  if (keys["ArrowDown"]) velocity += acceleration;
 
-  if (keys["ArrowUp"]) cube.translateZ(-speed);
-  if (keys["ArrowDown"]) cube.translateZ(speed);
-  if (keys["ArrowLeft"]) cube.rotation.y += turnSpeed;
-  if (keys["ArrowRight"]) cube.rotation.y -= turnSpeed;
+  // Clamp speed
+  velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity));
+
+  // Apply friction
+  velocity *= friction;
+
+  // Turning (only if moving)
+  if (Math.abs(velocity) > 0.001) {
+    if (keys["ArrowLeft"]) cube.rotation.y += turnSpeed * (velocity < 0 ? -1 : 1);
+    if (keys["ArrowRight"]) cube.rotation.y -= turnSpeed * (velocity < 0 ? -1 : 1);
+  }
+
+  // Move car
+  cube.translateZ(velocity);
 
   // Follow camera
   camera.position.x = cube.position.x + Math.sin(cube.rotation.y) * 10;
