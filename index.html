@@ -115,18 +115,44 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Function to insert or update the local player's data in the "editors" table
     async function registerPlayer() {
-      const { error } = await supabaseClient
+  try {
+    // Check if the player already exists
+    const { data, error } = await supabaseClient
+      .from('editors')
+      .select('id')
+      .eq('id', playerId)
+      .single();
+
+    if (error && error.code !== 'P0001') { // Error code for no row found
+      console.error('Error checking if player exists:', error);
+      return;
+    }
+
+    // If no data found, insert a new player
+    if (!data) {
+      const { error: insertError } = await supabaseClient
         .from('editors')
-        .upsert([{
-          player_id: playerId,  // Use player_id for string ID
+        .insert([{
+          id: playerId,
           x: cube.position.x,
           y: cube.position.y,
           z: cube.position.z,
           rotation: cube.rotation.y,
-        }], { onConflict: ['player_id'] });
-      if (error) console.error('Error registering player:', error);
-      else console.log("Player registered/updated.");
+        }]);
+
+      if (insertError) {
+        console.error('Error inserting player:', insertError);
+      } else {
+        console.log("Player inserted successfully.");
+      }
+    } else {
+      console.log("Player already exists, no need to insert.");
     }
+  } catch (err) {
+    console.error("Error registering player:", err);
+  }
+}
+
 
     // Function to update the local player's data in the "editors" table
     async function updatePlayerState() {
