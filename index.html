@@ -171,20 +171,26 @@
           labelRenderer.setSize(window.innerWidth, window.innerHeight);
         });
         
-        // Add grid and plane
         const grid = new THREE.GridHelper(100, 100);
-        scene.add(grid);
-        const plane = new THREE.Mesh(
-          new THREE.PlaneGeometry(100, 100),
-          new THREE.MeshStandardMaterial({ color: 0x228B22 }),
-          new texture == new THREE.TextureLoader().load( "/grass.png" ),
-          texture.wrapS == THREE.RepeatWrapping,
-          texture.wrapT == THREE.RepeatWrapping,
-          texture.repeat.set( 4, 4 ),
-        );
-        plane.rotation.x = -Math.PI / 2;
-        scene.add(plane);
-        
+scene.add(grid);
+
+// Load and configure the texture
+const texture = new THREE.TextureLoader().load('/grass.png');
+texture.wrapS = THREE.RepeatWrapping;
+texture.wrapT = THREE.RepeatWrapping;
+texture.repeat.set(4, 4);
+
+// Create material with the texture
+const planeMaterial = new THREE.MeshStandardMaterial({ map: texture });
+
+// Create and rotate the plane
+const plane = new THREE.Mesh(
+  new THREE.PlaneGeometry(100, 100),
+  planeMaterial
+);
+plane.rotation.x = -Math.PI / 2;
+scene.add(plane);
+
         // Local player's car (red cube)
         const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
         const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
