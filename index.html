@@ -1,203 +1,245 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Multiplayer Car Simulation</title>
-    <style>
-      body { margin: 0; overflow: hidden; }
-      canvas { display: block; }
-      .chat-message {
-        position: absolute;
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-        color: white;
-        background-color: rgba(0, 0, 0, 0.7);
-        padding: 5px;
-        border-radius: 3px;
-        pointer-events: none; /* Allow clicks to pass through */
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multiplayer Car Simulation</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+    #chatInput {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      width: 300px;
+      display: none;
+      font-size: 16px;
+      padding: 5px;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.175.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.175.0/examples/jsm/"
       }
-    </style>
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.175.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.175.0/examples/jsm/"
+    }
+  </script>
+</head>
+<body>
+  <input type="text" id="chatInput" placeholder="Type message and hit Enter" />
+  <script type="module">
+    import * as THREE from 'three';
+    import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const playerId = localStorage.getItem('playerId') || '_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('playerId', playerId);
+
+    let chatInput = document.getElementById('chatInput');
+    let chatMode = false;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0';
+    document.body.appendChild(labelRenderer.domElement);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    const grid = new THREE.GridHelper(100, 100);
+    scene.add(grid);
+
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(100, 100),
+      new THREE.MeshStandardMaterial({ color: 0x228B22 })
+    );
+    plane.rotation.x = -Math.PI / 2;
+    scene.add(plane);
+
+    const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
+    const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+    const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+    cube.position.y = 0.5;
+    scene.add(cube);
+
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'label';
+    labelDiv.style.color = 'white';
+    labelDiv.style.background = 'rgba(0,0,0,0.5)';
+    labelDiv.style.padding = '2px 5px';
+    labelDiv.style.borderRadius = '5px';
+    const nameLabel = new CSS2DObject(labelDiv);
+    nameLabel.position.set(0, 2, 0);
+    cube.add(nameLabel);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(10, 20, 10);
+    scene.add(directionalLight);
+
+    camera.position.set(0, 10, 15);
+    camera.lookAt(0, 0, 0);
+
+    let keys = {}, velocity = 0, turnVelocity = 0;
+    const acceleration = 0.01, maxSpeed = 0.5, friction = 0.98;
+    const turnAcceleration = 0.002, turnFriction = 0.9, maxTurnSpeed = 0.05;
+
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        chatMode = !chatMode;
+        chatInput.style.display = chatMode ? 'block' : 'none';
+        chatInput.focus();
+        if (!chatMode) {
+          chatInput.blur();
+          chatInput.value = '';
         }
+        return;
       }
-    </script>
-  </head>
-  <body>
-    <script type="module">
-      import * as THREE from 'three';
-      import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-      import { CSS2DRenderer, CSS2DObject } from 'https://cdn.jsdelivr.net/npm/three@0.175.0/examples/jsm/renderers/CSS2DRenderer.js';
 
-      const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
-      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU';
-      const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+      if (!chatMode) keys[e.key] = true;
+    });
 
-      let playerId = localStorage.getItem('playerId') || '_' + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem('playerId', playerId);
+    window.addEventListener('keyup', e => {
+      if (!chatMode) keys[e.key] = false;
+    });
 
-      document.addEventListener("DOMContentLoaded", () => {
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87ceeb);
-
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
-
-        const labelRenderer = new CSS2DRenderer();
-        labelRenderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(labelRenderer.domElement);
-
-        window.addEventListener('resize', () => {
-          camera.aspect = window.innerWidth / window.innerHeight;
-          camera.updateProjectionMatrix();
-          renderer.setSize(window.innerWidth, window.innerHeight);
-          labelRenderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        const grid = new THREE.GridHelper(100, 100);
-        scene.add(grid);
-
-        const plane = new THREE.Mesh(
-          new THREE.PlaneGeometry(100, 100),
-          new THREE.MeshStandardMaterial({ color: 0x228B22 })
-        );
-        plane.rotation.x = -Math.PI / 2;
-        scene.add(plane);
-
-        const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
-        const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-        cube.position.y = 0.5;
-        scene.add(cube);
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-        scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(10, 20, 10);
-        scene.add(directionalLight);
-
-        camera.position.set(0, 10, 15);
-        camera.lookAt(0, 0, 0);
-
-        let keys = {}, velocity = 0, turnVelocity = 0;
-        const acceleration = 0.01, maxSpeed = 0.5, friction = 0.98;
-        const turnAcceleration = 0.002, turnFriction = 0.9, maxTurnSpeed = 0.05;
-
-        window.addEventListener('keydown', e => keys[e.key] = true);
-        window.addEventListener('keyup', e => keys[e.key] = false);
-
-        const otherPlayers = {};
-
-        async function registerPlayer() {
-          await supabaseClient.from('editors').upsert([{
-            player_id: playerId,
-            x: cube.position.x,
-            y: cube.position.y,
-            z: cube.position.z,
-            rotation: cube.rotation.y,
-          }], { onConflict: ['player_id'] });
+    chatInput.addEventListener('keydown', async e => {
+      if (e.key === 'Enter') {
+        const message = chatInput.value.trim();
+        if (message.length > 0) {
+          await supabase.from('chat').insert([{ player_id: playerId, message }]);
+          labelDiv.textContent = message;
         }
+        chatInput.value = '';
+        chatInput.style.display = 'none';
+        chatMode = false;
+      }
+    });
 
-        async function updatePlayerState() {
-          await supabaseClient.from('editors').update({
-            x: cube.position.x,
-            y: cube.position.y,
-            z: cube.position.z,
-            rotation: cube.rotation.y,
-          }).match({ player_id: playerId });
+    const otherPlayers = {};
+
+    async function registerPlayer() {
+      await supabase.from('editors').upsert([{
+        player_id: playerId,
+        x: cube.position.x,
+        y: cube.position.y,
+        z: cube.position.z,
+        rotation: cube.rotation.y,
+      }], { onConflict: ['player_id'] });
+    }
+
+    async function updatePlayerState() {
+      await supabase.from('editors').update({
+        x: cube.position.x,
+        y: cube.position.y,
+        z: cube.position.z,
+        rotation: cube.rotation.y,
+      }).match({ player_id: playerId });
+    }
+
+    async function getPlayersRealtime() {
+      const { data: players } = await supabase.from('editors').select('*').neq('player_id', playerId);
+      const { data: messages } = await supabase.from('chat').select('*').order('id', { ascending: false }).limit(100);
+
+      players.forEach(p => {
+        let car = otherPlayers[p.player_id];
+        if (!car) {
+          const newCar = new THREE.Mesh(cubeGeometry, new THREE.MeshStandardMaterial({ color: 0x0000ff }));
+          newCar.position.set(p.x, p.y, p.z);
+          newCar.rotation.y = p.rotation;
+          newCar.userData.target = { x: p.x, y: p.y, z: p.z, rotation: p.rotation };
+
+          const msgDiv = document.createElement('div');
+          msgDiv.className = 'label';
+          msgDiv.style.color = 'white';
+          msgDiv.style.background = 'rgba(0,0,0,0.5)';
+          msgDiv.style.padding = '2px 5px';
+          msgDiv.style.borderRadius = '5px';
+          const msgLabel = new CSS2DObject(msgDiv);
+          msgLabel.position.set(0, 2, 0);
+          newCar.add(msgLabel);
+
+          newCar.userData.msgLabel = msgDiv;
+          scene.add(newCar);
+          otherPlayers[p.player_id] = newCar;
+        } else {
+          car.userData.target = { x: p.x, y: p.y, z: p.z, rotation: p.rotation };
         }
-
-        async function getPlayersRealtime() {
-          const { data } = await supabaseClient.from('editors').select('*').neq('player_id', playerId);
-
-          data.forEach(p => {
-            let car = otherPlayers[p.player_id];
-            if (!car) {
-              car = new THREE.Mesh(cubeGeometry, new THREE.MeshStandardMaterial({ color: 0x0000ff }));
-              car.position.set(p.x, p.y, p.z);
-              car.rotation.y = p.rotation;
-              car.userData.target = { x: p.x, y: p.y, z: p.z, rotation: p.rotation };
-
-              // Create chat message
-              const chatMessage = document.createElement('div');
-              chatMessage.className = 'chat-message';
-              chatMessage.textContent = `Player ${p.player_id}`;
-
-              const chatLabel = new CSS2DObject(chatMessage);
-              chatLabel.position.set(0, 2, 0); // Position the label above the car
-              car.add(chatLabel);
-
-              scene.add(car);
-              otherPlayers[p.player_id] = car;
-            } else {
-              car.userData.target = { x: p.x, y: p.y, z: p.z, rotation: p.rotation };
-            }
-          });
-        }
-
-        setInterval(getPlayersRealtime, 50);
-
-        window.addEventListener('beforeunload', () => {
-          supabaseClient.from('editors').delete().match({ player_id: playerId });
-        });
-
-        let lastUpdate = Date.now();
-        function animate() {
-          requestAnimationFrame(animate);
-
-          if (keys["ArrowUp"]) velocity -= acceleration;
-          if (keys["ArrowDown"]) velocity += acceleration;
-          velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity)) * friction;
-
-          if (keys["ArrowRight"]) turnVelocity += turnAcceleration;
-          else if (keys["ArrowLeft"]) turnVelocity -= turnAcceleration;
-          else turnVelocity *= turnFriction;
-
-          turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
-
-          if (Math.abs(velocity) > 0.001) cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
-          cube.translateZ(velocity);
-
-          camera.position.set(
-            cube.position.x + Math.sin(cube.rotation.y) * 10,
-            cube.position.y + 5,
-            cube.position.z + Math.cos(cube.rotation.y) * 10
-          );
-          camera.lookAt(cube.position);
-
-          // Predictive update for remote cars
-          Object.values(otherPlayers).forEach(car => {
-            const target = car.userData.target;
-            if (!target) return;
-
-            car.position.lerp(new THREE.Vector3(target.x, target.y, target.z), 0.1);
-            car.rotation.y += (target.rotation - car.rotation.y) * 0.1;
-
-            // Update the chat label's position in 3D space
-            const chatLabel = car.children.find(child => child instanceof CSS2DObject);
-            if (chatLabel) {
-              chatLabel.position.set(0, car.position.y + 2, 0);
-            }
-          });
-
-          if (Date.now() - lastUpdate > 50) {
-            updatePlayerState();
-            lastUpdate = Date.now();
-          }
-
-          renderer.render(scene, camera);
-          labelRenderer.render(scene, camera); // Render 2D elements
-        }
-
-        registerPlayer();
-        animate();
       });
-    </script>
-  </body>
+
+      messages.forEach(msg => {
+        if (msg.player_id !== playerId && otherPlayers[msg.player_id]) {
+          otherPlayers[msg.player_id].userData.msgLabel.textContent = msg.message;
+        }
+      });
+    }
+
+    setInterval(getPlayersRealtime, 500);
+    window.addEventListener('beforeunload', () => {
+      supabase.from('editors').delete().match({ player_id: playerId });
+    });
+
+    let lastUpdate = Date.now();
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (keys["ArrowUp"]) velocity -= acceleration;
+      if (keys["ArrowDown"]) velocity += acceleration;
+      velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity)) * friction;
+
+      if (keys["ArrowRight"]) turnVelocity += turnAcceleration;
+      else if (keys["ArrowLeft"]) turnVelocity -= turnAcceleration;
+      else turnVelocity *= turnFriction;
+
+      turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
+
+      if (Math.abs(velocity) > 0.001) cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
+      cube.translateZ(velocity);
+
+      camera.position.set(
+        cube.position.x + Math.sin(cube.rotation.y) * 10,
+        cube.position.y + 5,
+        cube.position.z + Math.cos(cube.rotation.y) * 10
+      );
+      camera.lookAt(cube.position);
+
+      Object.values(otherPlayers).forEach(car => {
+        const target = car.userData.target;
+        if (!target) return;
+        car.position.lerp(new THREE.Vector3(target.x, target.y, target.z), 0.1);
+        car.rotation.y += (target.rotation - car.rotation.y) * 0.1;
+      });
+
+      if (Date.now() - lastUpdate > 50) {
+        updatePlayerState();
+        lastUpdate = Date.now();
+      }
+
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    }
+
+    registerPlayer();
+    animate();
+  </script>
+</body>
 </html>
