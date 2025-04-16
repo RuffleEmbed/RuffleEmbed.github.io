@@ -363,7 +363,12 @@ cube.position.copy(carBody.position);
 cube.quaternion.copy(carBody.quaternion);
 
           }
-          const world = new CANNON.World();
+          
+          
+          
+          
+}
+const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
 
 // Materials
@@ -391,7 +396,6 @@ rampBody.addShape(rampShape);
 world.addBody(rampBody);
 
 
-}
           camera.position.set(
             cube.position.x + Math.sin(cube.rotation.y) * 10,
             cube.position.y + 5,
