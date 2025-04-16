@@ -55,6 +55,7 @@
         "imports": {
           "three": "https://cdn.jsdelivr.net/npm/three@0.175.0/build/three.module.js",
           "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.175.0/examples/jsm/"
+          "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
         }
       }
     </script>
@@ -70,7 +71,7 @@
       import * as THREE from 'three';
       import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
       import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-      import * as CANNON from 'cannon';
+      import * as CANNON from 'cannon-es';
     
       // --- Supabase Configuration ---
       const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
