@@ -201,6 +201,42 @@
         });
         world.addBody(carBody);
         
+        // ===== [NEW] Create a ramp for collision =====
+        const rampGeometry = new THREE.BoxGeometry(10, 0.5, 5);
+        const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+        const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
+        // Position the ramp with an incline
+        ramp.position.set(10, 0.25, 0);
+        ramp.rotation.z = -Math.PI / 6; // incline the ramp by 30 degrees
+        scene.add(ramp);
+        
+        const rampShape = new CANNON.Box(new CANNON.Vec3(5, 0.25, 2.5));
+        const rampBody = new CANNON.Body({
+          mass: 0,
+          position: new CANNON.Vec3(10, 0.25, 0),
+        });
+        rampBody.addShape(rampShape);
+        // Rotate the ramp body to match the Three.js ramp rotation
+        rampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), -Math.PI / 6);
+        world.addBody(rampBody);
+        // ===== End ramp creation =====
+        
+        // ===== [NEW] Create another car for collision =====
+        const otherCar = new THREE.Mesh(
+          new THREE.BoxGeometry(2, 1, 4),
+          new THREE.MeshStandardMaterial({ color: 0x0000ff })
+        );
+        otherCar.position.set(-5, 0.5, 0);
+        scene.add(otherCar);
+        
+        const otherCarBody = new CANNON.Body({
+          mass: 1,
+          position: new CANNON.Vec3(-5, 0.5, 0),
+          shape: new CANNON.Box(new CANNON.Vec3(1, 0.5, 2)),
+        });
+        world.addBody(otherCarBody);
+        // ===== End other car creation =====
+        
         // Lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); 
         scene.add(ambientLight);
@@ -218,11 +254,16 @@
           requestAnimationFrame(animate);
           
           // Update physics world
-          world.step(1/60);
+          world.step(1 / 60);
           
-          // Sync Three.js car with Cannon.js body
+          // Sync Three.js car with Cannon.js body (local player)
           car.position.copy(carBody.position);
           car.rotation.copy(carBody.rotation);
+          
+          // ===== [NEW] Sync the other car with its physics body =====
+          otherCar.position.copy(otherCarBody.position);
+          otherCar.rotation.copy(otherCarBody.rotation);
+          // ===== End syncing other car =====
           
           // Render the scene
           renderer.render(scene, camera);
@@ -231,6 +272,18 @@
         
         animate();
       });
+      
+      // Helper function to show floating chat messages (preserved from your original logic)
+      function showFloatingMessage(player, text) {
+        const div = document.createElement('div');
+        div.className = 'floating-chat';
+        div.textContent = player + ": " + text;
+        document.body.appendChild(div);
+        // Remove the element after 5 seconds
+        setTimeout(() => {
+          document.body.removeChild(div);
+        }, 5000);
+      }
     </script>
   </body>
 </html>
