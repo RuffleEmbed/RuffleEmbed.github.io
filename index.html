@@ -19,6 +19,34 @@
     </script>
   </head>
   <body>
+    <div id="chat-log" style="
+  position: absolute;
+  bottom: 40px;
+  left: 10px;
+  width: 300px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 5px;
+  border-radius: 5px;
+  z-index: 10;"></div>
+
+<input id="chat-input" type="text" placeholder="Type your message..." style="
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  width: 300px;
+  padding: 5px;
+  font-size: 14px;
+  display: none;
+  z-index: 10;
+  border-radius: 5px;
+  border: none;
+  outline: none;" />
+
     <!-- Do not include the UMD version of supabase-js -->
     <script type="module">
       import * as THREE from 'three';
@@ -242,6 +270,67 @@
           console.error("Error in main application logic:", err);
         }
       });
+      // Chat Elements
+const chatLog = document.getElementById('chat-log');
+const chatInput = document.getElementById('chat-input');
+let chatMode = false;
+
+// Submit message
+chatInput.addEventListener('keydown', async (e) => {
+  if (e.key === "Enter" && chatInput.value.trim() !== "") {
+    const message = chatInput.value.trim();
+    chatInput.value = "";
+    chatMode = false;
+    chatInput.style.display = "none";
+    try {
+      await supabaseClient.from('messages').insert([
+        { player_id: playerId, text: message }
+      ]);
+    } catch (err) {
+      console.error("Failed to send message:", err);
+    }
+  }
+});
+
+// Toggle chat with Enter key
+window.addEventListener('keydown', (e) => {
+  if (e.key === "Enter" && !chatMode) {
+    chatMode = true;
+    chatInput.style.display = "block";
+    chatInput.focus();
+  } else if (e.key === "Enter" && chatMode) {
+    // Prevent camera input during chat
+    e.stopPropagation();
+  }
+
+  if (chatMode) {
+    e.preventDefault();
+    keys = {}; // Cancel movement while typing
+  }
+});
+
+// Fetch messages every 2s
+async function fetchMessages() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error("Error fetching messages:", error);
+      return;
+    }
+
+    chatLog.innerHTML = data.reverse().map(m => 
+      `<div><strong>${m.player_id}</strong>: ${m.text}</div>`).join('');
+  } catch (err) {
+    console.error("Error fetching chat:", err);
+  }
+}
+setInterval(fetchMessages, 2000);
+
     </script>
   </body>
 </html>
