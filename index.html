@@ -70,6 +70,7 @@
       import * as THREE from 'three';
       import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
       import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+      import * as CANNON from 'cannon';
       
       // Supabase configuration
       const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
@@ -239,14 +240,25 @@ scene.add(plane);
           }
         }
         // Ramp setup
-      const rampGeometry = new THREE.BoxGeometry(10, 1, 20); // width, height, depth
-      const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Brown ramp
-      const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
+// ===== [NEW] Create a ramp for collision =====
+const rampGeometry = new THREE.BoxGeometry(10, 0.5, 5);
+const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
+// Position the ramp with an incline
+ramp.position.set(10, 0.25, 0);
+ramp.rotation.z = -Math.PI / 6; // incline the ramp by 30 degrees
+scene.add(ramp);
 
-// Position and rotate ramp
-    ramp.position.set(10, 0.5, -20); // Adjust position as needed
-    ramp.rotation.x = -Math.PI / 8;  // Tilt to create a ramp angle (~22.5 degrees)
-    scene.add(ramp);
+const rampShape = new CANNON.Box(new CANNON.Vec3(5, 0.25, 2.5));
+const rampBody = new CANNON.Body({
+  mass: 0,
+  position: new CANNON.Vec3(10, 0.25, 0),
+});
+rampBody.addShape(rampShape);
+// Rotate the ramp body to match the Three.js ramp rotation
+rampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), -Math.PI / 6);
+world.addBody(rampBody);
+// ===== End ramp creation =====
 
         async function checkIdleTimeout() {
   const now = Date.now();
