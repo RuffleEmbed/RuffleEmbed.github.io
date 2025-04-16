@@ -223,7 +223,23 @@
             console.error("Error registering player:", err);
           }
         }
-        
+        function checkIdleTimeout() {
+          const now = Date.now();
+          const idleTime = now - lastMovementTime;
+
+          if (idleTime > 2 * 60 * 1000) { // 2 minutes
+            console.warn("Kicking due to inactivity...");
+
+        supabaseClient.from('editors').delete().match({ player_id: playerId })
+          .then(() => {
+          alert("You were kicked due to inactivity.");
+          location.reload();
+        });
+    }
+}
+
+setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
+
         // Update local player state in Supabase
         async function updatePlayerState() {
           try {
@@ -296,6 +312,8 @@
         
         // Animation loop for local player movement and rendering
         let lastUpdate = Date.now();
+        let lastMovementTime = Date.now();
+
         function animate() {
           requestAnimationFrame(animate);
           if (keys["ArrowUp"]) velocity -= acceleration;
@@ -309,6 +327,10 @@
           turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
           if (Math.abs(velocity) > 0.001) cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
           cube.translateZ(velocity);
+          if (Math.abs(velocity) > 0.001 || Math.abs(turnVelocity) > 0.001) {
+            lastMovementTime = Date.now();
+          }
+
           
           camera.position.set(
             cube.position.x + Math.sin(cube.rotation.y) * 10,
