@@ -268,6 +268,33 @@ scene.add(plane);
 
 
 setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
+const world = new CANNON.World();
+world.gravity.set(0, -9.82, 0);
+
+// Materials
+const carMaterial = new CANNON.Material();
+
+
+// Car Body
+const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2));
+const carBody = new CANNON.Body({
+  mass: 1,
+  position: new CANNON.Vec3(0, 1, 0),
+  material: carMaterial
+});
+carBody.addShape(carShape);
+world.addBody(carBody);
+
+// Ramp Body
+const rampShape = new CANNON.Box(new CANNON.Vec3(5, 0.5, 10));
+const rampBody = new CANNON.Body({
+  mass: 0,
+  position: new CANNON.Vec3(10, 0, -20)
+});
+rampBody.quaternion.setFromEuler(-Math.PI / 8, 0, 0); // Correct quaternion usage
+rampBody.addShape(rampShape);
+world.addBody(rampBody);
+
 
         // Update local player state in Supabase
         async function updatePlayerState() {
@@ -367,33 +394,6 @@ cube.quaternion.copy(carBody.quaternion);
           
           
           
-
-const world = new CANNON.World();
-world.gravity.set(0, -9.82, 0);
-
-// Materials
-const carMaterial = new CANNON.Material();
-
-
-// Car Body
-const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2));
-const carBody = new CANNON.Body({
-  mass: 1,
-  position: new CANNON.Vec3(0, 1, 0),
-  material: carMaterial
-});
-carBody.addShape(carShape);
-world.addBody(carBody);
-
-// Ramp Body
-const rampShape = new CANNON.Box(new CANNON.Vec3(5, 0.5, 10));
-const rampBody = new CANNON.Body({
-  mass: 0,
-  position: new CANNON.Vec3(10, 0, -20)
-});
-rampBody.quaternion.setFromEuler(-Math.PI / 8, 0, 0); // Correct quaternion usage
-rampBody.addShape(rampShape);
-world.addBody(rampBody);
 
 
           camera.position.set(
