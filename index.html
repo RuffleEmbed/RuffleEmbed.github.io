@@ -58,6 +58,7 @@
         }
       }
     </script>
+    <script src="cannon.min.js"></script>
   </head>
   <body>
     <!-- Global Chat Log and Input -->
@@ -355,9 +356,42 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
           cube.translateZ(velocity);
           if (Math.abs(velocity) > 0.001 || Math.abs(turnVelocity) > 0.001) {
             lastMovementTime = Date.now();
+            updatePhysics();
           }
 
-          
+          const world = new CANNON.World();
+world.gravity.set(0, -9.82, 0);  // Apply gravity in the Y-axis (downward)
+
+// Create a material for the car and ramp
+const carMaterial = new CANNON.Material();
+const rampMaterial = new CANNON.Material();
+
+// Create the car physics body
+const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2)); // The size of the car
+const carBody = new CANNON.Body({
+  mass: 1,  // mass of the car
+  position: new CANNON.Vec3(0, 1, 0), // Initial position of the car
+  material: carMaterial
+});
+carBody.addShape(carShape);
+world.addBody(carBody);
+
+// Create the ramp physics body
+const rampShape = new CANNON.Box(new CANNON.Vec3(5, 0.5, 10)); // Size of the ramp
+const rampBody = new CANNON.Body({
+  mass: 0,  // Set mass to 0 for a static object
+  position: new CANNON.Vec3(10, 0, -20), // Position of the ramp
+  rotation: new CANNON.Vec3(-Math.PI / 8, 0, 0) // Rotation for tilt
+});
+rampBody.addShape(rampShape);
+world.addBody(rampBody);
+
+function updatePhysics() {
+  world.step(1 / 60);  // Step through physics simulation (60 Hz)
+
+  cube.position.copy(carBody.position);
+  cube.rotation.setFromQuaternion(carBody.quaternion);
+}
           camera.position.set(
             cube.position.x + Math.sin(cube.rotation.y) * 10,
             cube.position.y + 5,
