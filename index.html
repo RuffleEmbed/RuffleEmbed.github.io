@@ -58,6 +58,7 @@
         }
       }
     </script>
+    
   </head>
   <body>
     <!-- Global Chat Log and Input -->
@@ -68,8 +69,6 @@
       import * as THREE from 'three';
       import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
       import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-      import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
-
       
       // Supabase configuration
       const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
@@ -357,45 +356,9 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
           cube.translateZ(velocity);
           if (Math.abs(velocity) > 0.001 || Math.abs(turnVelocity) > 0.001) {
             lastMovementTime = Date.now();
-            updatePhysics();
-            world.step(1 / 60);
-cube.position.copy(carBody.position);
-cube.quaternion.copy(carBody.quaternion);
-
           }
+
           
-          
-          
-          
-}
-const world = new CANNON.World();
-world.gravity.set(0, -9.82, 0);
-
-// Materials
-const carMaterial = new CANNON.Material();
-const rampMaterial = new CANNON.Material();
-
-// Car Body
-const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2));
-const carBody = new CANNON.Body({
-  mass: 1,
-  position: new CANNON.Vec3(0, 1, 0),
-  material: carMaterial
-});
-carBody.addShape(carShape);
-world.addBody(carBody);
-
-// Ramp Body
-const rampShape = new CANNON.Box(new CANNON.Vec3(5, 0.5, 10));
-const rampBody = new CANNON.Body({
-  mass: 0,
-  position: new CANNON.Vec3(10, 0, -20)
-});
-rampBody.quaternion.setFromEuler(-Math.PI / 8, 0, 0); // Correct quaternion usage
-rampBody.addShape(rampShape);
-world.addBody(rampBody);
-
-
           camera.position.set(
             cube.position.x + Math.sin(cube.rotation.y) * 10,
             cube.position.y + 5,
