@@ -178,6 +178,7 @@ scene.add(grid);
 const texture = new THREE.TextureLoader().load('/grass.png');
 texture.wrapS = THREE.RepeatWrapping;
 texture.wrapT = THREE.RepeatWrapping;
+texture.colorSpace = THREE.SRGBColorSpace;
 texture.repeat.set(12, 12);
 
 // Create material with the texture
