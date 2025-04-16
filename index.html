@@ -182,7 +182,7 @@
           }
 
           // Poll for remote players every 1 second
-          setInterval(getPlayersRealtime, 1000);
+          setInterval(getPlayersRealtime, 100);
 
           // Remove the local player's record on unload
           window.addEventListener('beforeunload', async () => {
