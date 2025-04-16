@@ -223,7 +223,8 @@ function init() {
         // Grid and Terrain
         const grid = new THREE.GridHelper(100, 100);
         scene.add(grid);
-    
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb);
         // WebGL Renderer
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
