@@ -58,7 +58,6 @@
         }
       }
     </script>
-    <script src="cannon.js"></script>
   </head>
   <body>
     <!-- Global Chat Log and Input -->
@@ -69,6 +68,8 @@
       import * as THREE from 'three';
       import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
       import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+      import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
+
       
       // Supabase configuration
       const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
