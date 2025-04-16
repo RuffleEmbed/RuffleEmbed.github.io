@@ -56,20 +56,20 @@
       import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
       import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
       import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
-
+    
       // Supabase configuration
       const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
       const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3NDE3MzQsImV4cCI6MjA2MDMxNzczNH0.cAcZRnhse7FAszZGDf2XAmDzzX3n9emAmcZvBGo3nkA';
       const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
-
+    
       // Player ID
       let playerId = localStorage.getItem('playerId') || '_' + Math.random().toString(36).substr(2, 9);
       localStorage.setItem('playerId', playerId);
-
+    
       const chatLog = document.getElementById('chat-log');
       const chatInput = document.getElementById('chat-input');
       let chatMode = false;
-
+    
       window.addEventListener('keydown', (e) => {
         if (e.key === "Enter" && !chatMode) {
           chatMode = true;
@@ -91,7 +91,7 @@
           e.stopPropagation();
         }
       });
-
+    
       async function sendMessage(text) {
         try {
           await supabaseClient.from('messages').insert([{ player_id: playerId, text }]);
@@ -99,7 +99,7 @@
           console.error("Failed to send message:", err);
         }
       }
-
+    
       async function fetchMessages() {
         try {
           const { data, error } = await supabaseClient
@@ -118,31 +118,35 @@
         }
       }
       setInterval(fetchMessages, 2000);
-
+    
       // Three.js Scene Setup
       document.addEventListener("DOMContentLoaded", () => {
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
-
+    
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
-
+    
         const labelRenderer = new CSS2DRenderer();
         labelRenderer.setSize(window.innerWidth, window.innerHeight);
         labelRenderer.domElement.style.position = 'absolute';
         labelRenderer.domElement.style.top = '0px';
         labelRenderer.domElement.style.pointerEvents = 'none';
         document.body.appendChild(labelRenderer.domElement);
-
+    
         window.addEventListener('resize', () => {
           camera.aspect = window.innerWidth / window.innerHeight;
           camera.updateProjectionMatrix();
           renderer.setSize(window.innerWidth, window.innerHeight);
           labelRenderer.setSize(window.innerWidth, window.innerHeight);
         });
-
+    
+        // Create the world (Cannon.js Physics)
+        const world = new CANNON.World();
+        world.gravity.set(0, -9.82, 0); // Gravity
+    
         // Ground
         const groundShape = new CANNON.Plane();
         const groundBody = new CANNON.Body({
@@ -151,7 +155,7 @@
         });
         groundBody.addShape(groundShape);
         world.addBody(groundBody);
-
+    
         // Car Body
         const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2));
         const carBody = new CANNON.Body({
@@ -162,75 +166,72 @@
         });
         carBody.addShape(carShape);
         world.addBody(carBody);
-
+    
         // Local car (visual)
         const carGeometry = new THREE.BoxGeometry(2, 1, 4);
         const carMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const car = new THREE.Mesh(carGeometry, carMaterial);
         scene.add(car);
-
+    
         // Camera settings
         camera.position.set(0, 5, 15);
         camera.lookAt(0, 0, 0);
-
+    
         // Lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(10, 20, 10);
         scene.add(directionalLight);
-
-        // Physics world
-        const world = new CANNON.World();
-        world.gravity.set(0, -9.82, 0);
-
+    
         // Movement variables
         let keys = {}, velocity = 0, turnVelocity = 0;
         const acceleration = 0.02, maxSpeed = 5, friction = 0.98;
         const turnAcceleration = 0.002, maxTurnSpeed = 0.05;
-
+    
         window.addEventListener('keydown', e => keys[e.key] = true);
         window.addEventListener('keyup', e => keys[e.key] = false);
-
+    
         // Update car state and physics
         function updateCarMovement() {
           if (keys["ArrowUp"]) velocity -= acceleration;
           if (keys["ArrowDown"]) velocity += acceleration;
           velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity)) * friction;
-
+    
           if (keys["ArrowRight"]) turnVelocity += turnAcceleration;
           else if (keys["ArrowLeft"]) turnVelocity -= turnAcceleration;
           else turnVelocity *= 0.9;
-
+    
           turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
-
+    
           carBody.velocity.x = Math.sin(car.rotation.y) * velocity;
           carBody.velocity.z = Math.cos(car.rotation.y) * velocity;
           carBody.angularVelocity.y = turnVelocity;
-
+    
           car.position.copy(carBody.position);
           car.rotation.y = carBody.rotation.y;
         }
-
+    
         function animate() {
           requestAnimationFrame(animate);
-
-          world.step(1 / 60);
+    
+          world.step(1 / 60); // Step the physics world
           updateCarMovement();
-
+    
           camera.position.set(
             car.position.x + Math.sin(car.rotation.y) * 10,
             car.position.y + 5,
             car.position.z + Math.cos(car.rotation.y) * 10
           );
           camera.lookAt(car.position);
-
+    
           renderer.render(scene, camera);
           labelRenderer.render(scene, camera);
         }
-
+    
         animate();
       });
     </script>
+    
   </body>
 </html>
