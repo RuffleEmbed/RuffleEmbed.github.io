@@ -223,12 +223,12 @@
             console.error("Error registering player:", err);
           }
         }
-        function checkIdleTimeout() {
+        async function checkIdleTimeout() {
           const now = Date.now();
           const idleTime = now - lastMovementTime;
 
           if (idleTime > 2 * 60 * 1000) { // 2 minutes
-            await supabaseClient.from('messages').insert([{ player_id, "was kicked due to inactivity." }]);
+            await supabaseClient.from('messages').insert([{ player_id, text: "was kicked due to inactivity." }]);
 
         supabaseClient.from('editors').delete().match({ player_id: playerId })
           .then(() => {
