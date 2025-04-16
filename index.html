@@ -176,7 +176,11 @@
         scene.add(grid);
         const plane = new THREE.Mesh(
           new THREE.PlaneGeometry(100, 100),
-          new THREE.MeshStandardMaterial({ color: 0x228B22 })
+          new THREE.MeshStandardMaterial({ color: 0x228B22 }),
+          new texture = new THREE.TextureLoader().load( "/grass.png" ),
+          texture.wrapS = THREE.RepeatWrapping,
+          texture.wrapT = THREE.RepeatWrapping,
+          texture.repeat.set( 4, 4 ),
         );
         plane.rotation.x = -Math.PI / 2;
         scene.add(plane);
