@@ -295,6 +295,13 @@ rampBody.quaternion.setFromEuler(-Math.PI / 8, 0, 0); // Correct quaternion usag
 rampBody.addShape(rampShape);
 world.addBody(rampBody);
 
+const groundShape = new CANNON.Plane();
+const groundBody = new CANNON.Body({
+  mass: 0, // Static object, so no mass
+  position: new CANNON.Vec3(0, 0, 0)
+});
+groundBody.addShape(groundShape);
+world.addBody(groundBody);
 
         // Update local player state in Supabase
         async function updatePlayerState() {
