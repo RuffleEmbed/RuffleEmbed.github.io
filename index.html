@@ -237,19 +237,22 @@ scene.add(plane);
           }
         }
         async function checkIdleTimeout() {
-          const now = Date.now();
-          const idleTime = now - lastMovementTime;
+  const now = Date.now();
+  const idleTime = now - lastMovementTime;
 
-          if (idleTime > 2 * 60 * 1000) { // 2 minutes
-            await supabaseClient.from('messages').insert([{ player_id, text: "was kicked due to inactivity." }]);
+  if (idleTime > 2 * 60 * 1000) { // 2 minutes
+    await supabaseClient.from('messages').insert([{
+      player_id: playerId,
+      text: "was kicked due to inactivity."
+    }]);
 
-        supabaseClient.from('editors').delete().match({ player_id: playerId })
-          .then(() => {
-          alert("You were kicked due to inactivity.");
-          location.reload();
-        });
-    }
+    await supabaseClient.from('editors').delete().match({ player_id: playerId });
+
+    alert("You were kicked due to inactivity.");
+    location.reload();
+  }
 }
+
 
 setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
 
