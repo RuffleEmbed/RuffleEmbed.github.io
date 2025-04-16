@@ -42,10 +42,12 @@
   padding: 5px;
   font-size: 14px;
   display: none;
-  z-index: 10;
+  background: white;
+  color: black;
   border-radius: 5px;
-  border: none;
-  outline: none;" />
+  border: 1px solid #ccc;
+  z-index: 10;" />
+
 
     <!-- Do not include the UMD version of supabase-js -->
     <script type="module">
@@ -292,45 +294,49 @@ chatInput.addEventListener('keydown', async (e) => {
   }
 });
 
-// Toggle chat with Enter key
+
+
+// Toggle chat mode
 window.addEventListener('keydown', (e) => {
+  // Enter toggles chat mode *only* if not already in it
   if (e.key === "Enter" && !chatMode) {
     chatMode = true;
     chatInput.style.display = "block";
     chatInput.focus();
-  } else if (e.key === "Enter" && chatMode) {
-    // Prevent camera input during chat
-    e.stopPropagation();
+    // Prevent movement
+    keys = {};
+    return;
   }
 
-  if (chatMode) {
-    e.preventDefault();
-    keys = {}; // Cancel movement while typing
+  // Pressing Enter *while focused in chat* submits the message
+  if (e.key === "Enter" && chatMode && document.activeElement === chatInput) {
+    e.preventDefault(); // Stop form behavior
+    const message = chatInput.value.trim();
+    if (message !== "") {
+      sendMessage(message);
+    }
+    chatInput.value = "";
+    chatInput.blur();
+    chatInput.style.display = "none";
+    chatMode = false;
+  }
+
+  // Prevent other controls when chatting
+  if (chatMode && e.key !== "Enter") {
+    e.stopPropagation();
   }
 });
 
-// Fetch messages every 2s
-async function fetchMessages() {
+// Send message to Supabase
+async function sendMessage(text) {
   try {
-    const { data, error } = await supabaseClient
-      .from('messages')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (error) {
-      console.error("Error fetching messages:", error);
-      return;
-    }
-
-    chatLog.innerHTML = data.reverse().map(m => 
-      `<div><strong>${m.player_id}</strong>: ${m.text}</div>`).join('');
+    await supabaseClient.from('messages').insert([
+      { player_id: playerId, text }
+    ]);
   } catch (err) {
-    console.error("Error fetching chat:", err);
+    console.error("Failed to send message:", err);
   }
 }
-setInterval(fetchMessages, 2000);
-
-    </script>
+</script>
   </body>
 </html>
