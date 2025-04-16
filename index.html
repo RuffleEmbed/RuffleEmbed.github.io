@@ -125,11 +125,12 @@ function init() {
       world.addBody(boxBody);
     
       // --- Update Physics Function ---
-      function updatePhysics() {
-  world.step(1 / 60);
+      function updatePhysics(deltaTime) {
+  world.step(1 / 60, deltaTime);
   mesh.position.copy(body.position);
   mesh.quaternion.copy(body.quaternion);
 }
+
 
     
       // --- Chat Elements ---
@@ -357,7 +358,7 @@ function init() {
             }
           }, 5000);
         }
-    
+        init();
         // --- Remove Local Player Record on Unload ---
         window.addEventListener('beforeunload', () => {
           supabaseClient.from('editors').delete().match({ player_id: playerId });
