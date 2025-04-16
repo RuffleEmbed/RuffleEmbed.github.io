@@ -58,7 +58,8 @@
         }
       }
     </script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js"></script>
+
   </head>
   <body>
     <!-- Global Chat Log and Input -->
@@ -69,7 +70,8 @@
       import * as THREE from 'three';
       import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
       import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-      
+      import * as CANNON from 'cannon';
+
       // Supabase configuration
       const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
       const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU';
@@ -79,7 +81,32 @@
       let playerId = localStorage.getItem('playerId') || '_' + Math.random().toString(36).substr(2, 9);
       localStorage.setItem('playerId', playerId);
       console.log("Player ID:", playerId);
-      
+      const world = new CANNON.World();
+      world.gravity.set(0, -9.82, 0); // Earth gravity
+      world.broadphase = new CANNON.NaiveBroadphase();
+      world.solver.iterations = 10;
+      const groundBody = new CANNON.Body({
+  mass: 0, // mass = 0 makes it static
+  shape: new CANNON.Plane(),
+});
+groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // Rotate to be flat
+world.addBody(groundBody);
+const boxShape = new CANNON.Box(new CANNON.Vec3(1, 1, 1)); // Half extents
+const boxBody = new CANNON.Body({
+  mass: 5, // dynamic object
+  position: new CANNON.Vec3(0, 10, 0),
+  shape: boxShape,
+});
+world.addBody(boxBody);
+function updatePhysics(deltaTime) {
+  world.step(deltaTime);
+
+  // Update mesh position from physics body
+  mesh.position.copy(boxBody.position);
+  mesh.quaternion.copy(boxBody.quaternion);
+}
+
+
       // Chat elements
       const chatLog = document.getElementById('chat-log');
       const chatInput = document.getElementById('chat-input');
@@ -356,6 +383,10 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
           cube.translateZ(velocity);
           if (Math.abs(velocity) > 0.001 || Math.abs(turnVelocity) > 0.001) {
             lastMovementTime = Date.now();
+            if (lastTime !== undefined) {
+    const deltaTime = (time - lastTime) / 1000; // convert ms to seconds
+    updatePhysics(deltaTime);
+  }
           }
 
           
