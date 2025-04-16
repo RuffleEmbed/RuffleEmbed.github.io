@@ -236,6 +236,16 @@ scene.add(plane);
             console.error("Error registering player:", err);
           }
         }
+        // Ramp setup
+      const rampGeometry = new THREE.BoxGeometry(10, 1, 20); // width, height, depth
+      const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Brown ramp
+      const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
+
+// Position and rotate ramp
+    ramp.position.set(10, 0.5, -20); // Adjust position as needed
+    ramp.rotation.x = -Math.PI / 8;  // Tilt to create a ramp angle (~22.5 degrees)
+    scene.add(ramp);
+
         async function checkIdleTimeout() {
   const now = Date.now();
   const idleTime = now - lastMovementTime;
