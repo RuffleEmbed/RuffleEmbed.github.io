@@ -71,48 +71,56 @@
       import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
       import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
       import * as CANNON from 'cannon';
-
-      // Supabase configuration
+    
+      // --- Supabase Configuration ---
       const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
       const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU';
       const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
-      
-      // Unique player ID saved in localStorage
+    
+      // --- Unique Player ID ---
       let playerId = localStorage.getItem('playerId') || '_' + Math.random().toString(36).substr(2, 9);
       localStorage.setItem('playerId', playerId);
       console.log("Player ID:", playerId);
+    
+      // --- Initialize Cannon.js World ---
       const world = new CANNON.World();
       world.gravity.set(0, -9.82, 0); // Earth gravity
       world.broadphase = new CANNON.NaiveBroadphase();
       world.solver.iterations = 10;
+    
+      // --- Create Ground ---
       const groundBody = new CANNON.Body({
-  mass: 0, // mass = 0 makes it static
-  shape: new CANNON.Plane(),
-});
-groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // Rotate to be flat
-world.addBody(groundBody);
-const boxShape = new CANNON.Box(new CANNON.Vec3(1, 1, 1)); // Half extents
-const boxBody = new CANNON.Body({
-  mass: 5, // dynamic object
-  position: new CANNON.Vec3(0, 10, 0),
-  shape: boxShape,
-});
-world.addBody(boxBody);
-function updatePhysics(deltaTime) {
-  world.step(deltaTime);
-
-  // Update mesh position from physics body
-  mesh.position.copy(boxBody.position);
-  mesh.quaternion.copy(boxBody.quaternion);
-}
-
-
-      // Chat elements
+        mass: 0, // static
+        shape: new CANNON.Plane(),
+      });
+      groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+      world.addBody(groundBody);
+    
+      // --- Create a Dynamic Physics Box ---
+      const boxShape = new CANNON.Box(new CANNON.Vec3(1, 1, 1)); // Half extents
+      const boxBody = new CANNON.Body({
+        mass: 5,
+        position: new CANNON.Vec3(0, 10, 0),
+        shape: boxShape,
+      });
+      world.addBody(boxBody);
+    
+      // --- Update Physics Function ---
+      function updatePhysics(deltaTime) {
+        world.step(deltaTime);
+        // In this example, we sync a dummy mesh with the physics box.
+        // Later, you can remove or replace this with your intended usage.
+        if (mesh) {
+          mesh.position.copy(boxBody.position);
+          mesh.quaternion.copy(boxBody.quaternion);
+        }
+      }
+    
+      // --- Chat Elements ---
       const chatLog = document.getElementById('chat-log');
       const chatInput = document.getElementById('chat-input');
       let chatMode = false;
-      
-      // Chat keyboard handling
+    
       window.addEventListener('keydown', (e) => {
         if (e.key === "Enter" && !chatMode) {
           chatMode = true;
@@ -135,8 +143,8 @@ function updatePhysics(deltaTime) {
           e.stopPropagation();
         }
       });
-      
-      // Send a chat message to Supabase
+    
+      // --- Send Chat Message ---
       async function sendMessage(text) {
         try {
           await supabaseClient.from('messages').insert([{ player_id: playerId, text }]);
@@ -144,8 +152,8 @@ function updatePhysics(deltaTime) {
           console.error("Failed to send message:", err);
         }
       }
-      
-      // Global chat polling (fetch messages every 2 seconds)
+    
+      // --- Global Chat Polling ---
       async function fetchMessages() {
         try {
           const { data, error } = await supabaseClient
@@ -158,10 +166,9 @@ function updatePhysics(deltaTime) {
             return;
           }
           if (!Array.isArray(data)) return;
-          // Update global chat log (oldest at top)
           chatLog.innerHTML = data.reverse().map(m => `<div><strong>${m.player_id}</strong>: ${m.text}</div>`).join('');
-          
-          // For messages within the last 5 seconds, show floating labels
+    
+          // Show floating labels for recent messages
           data.forEach(message => {
             const msgTime = new Date(message.created_at).getTime();
             if (Date.now() - msgTime < 5000) {
@@ -173,13 +180,14 @@ function updatePhysics(deltaTime) {
         }
       }
       setInterval(fetchMessages, 2000);
-      
-      // Three.js Scene Setup
+    
+      // --- Three.js Scene Setup ---
       document.addEventListener("DOMContentLoaded", () => {
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
-        
+    
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    
         // CSS2DRenderer for floating chat messages
         const labelRenderer = new CSS2DRenderer();
         labelRenderer.setSize(window.innerWidth, window.innerHeight);
@@ -187,69 +195,75 @@ function updatePhysics(deltaTime) {
         labelRenderer.domElement.style.top = '0px';
         labelRenderer.domElement.style.pointerEvents = 'none';
         document.body.appendChild(labelRenderer.domElement);
-        
+    
         window.addEventListener('resize', () => {
           camera.aspect = window.innerWidth / window.innerHeight;
           camera.updateProjectionMatrix();
           renderer.setSize(window.innerWidth, window.innerHeight);
           labelRenderer.setSize(window.innerWidth, window.innerHeight);
         });
-        
+    
+        // Grid and Terrain
         const grid = new THREE.GridHelper(100, 100);
-scene.add(grid);
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement); // Make sure this is in place!
-
-// Load and configure the texture
-const texture = new THREE.TextureLoader().load('/grass.png');
-texture.wrapS = THREE.RepeatWrapping;
-texture.wrapT = THREE.RepeatWrapping;
-texture.colorSpace = THREE.SRGBColorSpace;
-texture.repeat.set(12, 12);
-
-// Create material with the texture
-const planeMaterial = new THREE.MeshStandardMaterial({ map: texture });
-
-// Create and rotate the plane
-const plane = new THREE.Mesh(
-  new THREE.PlaneGeometry(100, 100),
-  planeMaterial
-);
-plane.rotation.x = -Math.PI / 2;
-scene.add(plane);
-
-        // Local player's car (red cube)
+        scene.add(grid);
+    
+        // WebGL Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+    
+        // Load and configure the texture for the ground plane
+        const texture = new THREE.TextureLoader().load('/grass.png');
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.repeat.set(12, 12);
+    
+        const planeMaterial = new THREE.MeshStandardMaterial({ map: texture });
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), planeMaterial);
+        plane.rotation.x = -Math.PI / 2;
+        scene.add(plane);
+    
+        // --- Local Player's Car (Red Cube) ---
         const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
         const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
         cube.position.y = 0.5;
         scene.add(cube);
-        
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); 
+    
+        // --- For demo purposes, a dummy mesh that syncs with the physics box ---
+        // This "mesh" is used in the updatePhysics() function above.
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshNormalMaterial());
+        scene.add(mesh);
+    
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
-
+    
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(10, 20, 10);
         scene.add(directionalLight);
-
-        
-        camera.position.set(0, 10, 15);
-        camera.lookAt(0, 0, 0);
-        
-        // Movement variables for local player
+    
+        // --- Additional Scene Object: Ramp ---
+        const rampGeometry = new THREE.BoxGeometry(10, 1, 20);
+        const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+        const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
+        ramp.position.set(10, 0.5, -20);
+        ramp.rotation.x = -Math.PI / 8;
+        scene.add(ramp);
+    
+        // --- Movement Variables for the Local Player ---
         let keys = {}, velocity = 0, turnVelocity = 0;
         const acceleration = 0.01, maxSpeed = 0.5, friction = 0.98;
         const turnAcceleration = 0.002, turnFriction = 0.9, maxTurnSpeed = 0.05;
-        
+    
         window.addEventListener('keydown', e => keys[e.key] = true);
         window.addEventListener('keyup', e => keys[e.key] = false);
-        
-        // Store remote players and their data
+    
+        // --- Remote Players Data ---
         const otherPlayers = {};
-        
-        // Register local player in Supabase
+    
+        // --- Register Local Player in Supabase ---
         async function registerPlayer() {
           try {
             await supabaseClient.from('editors').upsert([{
@@ -263,37 +277,8 @@ scene.add(plane);
             console.error("Error registering player:", err);
           }
         }
-        // Ramp setup
-      const rampGeometry = new THREE.BoxGeometry(10, 1, 20); // width, height, depth
-      const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Brown ramp
-      const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
-
-// Position and rotate ramp
-    ramp.position.set(10, 0.5, -20); // Adjust position as needed
-    ramp.rotation.x = -Math.PI / 8;  // Tilt to create a ramp angle (~22.5 degrees)
-    scene.add(ramp);
-
-        async function checkIdleTimeout() {
-  const now = Date.now();
-  const idleTime = now - lastMovementTime;
-
-  if (idleTime > 2 * 60 * 1000) { // 2 minutes
-    await supabaseClient.from('messages').insert([{
-      player_id: playerId,
-      text: "was kicked due to inactivity."
-    }]);
-
-    await supabaseClient.from('editors').delete().match({ player_id: playerId });
-
-    alert("You were kicked due to inactivity.");
-    location.reload();
-  }
-}
-
-
-setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
-
-        // Update local player state in Supabase
+    
+        // --- Update Local Player State ---
         async function updatePlayerState() {
           try {
             await supabaseClient.from('editors').update({
@@ -306,8 +291,8 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
             console.error("Error updating player state:", err);
           }
         }
-        
-        // Poll remote players for state (excluding local player)
+    
+        // --- Poll Remote Players ---
         async function getPlayersRealtime() {
           try {
             const { data } = await supabaseClient.from('editors').select('*').neq('player_id', playerId);
@@ -319,7 +304,6 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
                 car.position.set(p.x, p.y, p.z);
                 car.rotation.y = p.rotation;
                 car.userData.target = { x: p.x, y: p.y, z: p.z, rotation: p.rotation };
-                // No floating label yet
                 car.userData.chatLabel = null;
                 scene.add(car);
                 otherPlayers[p.player_id] = car;
@@ -332,10 +316,9 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
           }
         }
         setInterval(getPlayersRealtime, 50);
-        
-        // Show a floating chat message above a car (local or remote)
+    
+        // --- Floating Chat Message ---
         function showFloatingMessage(targetPlayerId, message) {
-          // Get the corresponding car: local (cube) or remote
           let car = (targetPlayerId === playerId) ? cube : otherPlayers[targetPlayerId];
           if (!car) return;
           if (car.userData.chatLabel) {
@@ -346,7 +329,7 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
             div.className = 'floating-chat';
             div.innerHTML = message;
             const labelObject = new CSS2DObject(div);
-            labelObject.position.set(0, 2, 0); // Adjust offset as needed
+            labelObject.position.set(0, 2, 0);
             car.add(labelObject);
             car.userData.chatLabel = labelObject;
           }
@@ -357,79 +340,98 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
             }
           }, 5000);
         }
-        
-        // Remove local player's record on unload
+    
+        // --- Remove Local Player Record on Unload ---
         window.addEventListener('beforeunload', () => {
           supabaseClient.from('editors').delete().match({ player_id: playerId });
         });
-        
-        // Animation loop for local player movement and rendering
-        let lastUpdate = Date.now();
+    
+        // --- Idle Timeout Check ---
         let lastMovementTime = Date.now();
-
-        function animate() {
+        async function checkIdleTimeout() {
+          const now = Date.now();
+          const idleTime = now - lastMovementTime;
+    
+          if (idleTime > 2 * 60 * 1000) { // 2 minutes
+            await supabaseClient.from('messages').insert([{
+              player_id: playerId,
+              text: "was kicked due to inactivity."
+            }]);
+    
+            await supabaseClient.from('editors').delete().match({ player_id: playerId });
+            alert("You were kicked due to inactivity.");
+            location.reload();
+          }
+        }
+        setInterval(checkIdleTimeout, 10000);
+    
+        // --- Unified Animation Loop ---
+        let prevTime;
+        let lastUpdate = Date.now();
+    
+        function animate(time) {
           requestAnimationFrame(animate);
+    
+          // --- Local Player Movement ---
           if (keys["ArrowUp"]) velocity -= acceleration;
           if (keys["ArrowDown"]) velocity += acceleration;
           velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity)) * friction;
-          
-          if (keys["ArrowRight"]) turnVelocity += turnAcceleration;
-          else if (keys["ArrowLeft"]) turnVelocity -= turnAcceleration;
-          else turnVelocity *= turnFriction;
-          
+    
+          if (keys["ArrowRight"]) {
+            turnVelocity += turnAcceleration;
+          } else if (keys["ArrowLeft"]) {
+            turnVelocity -= turnAcceleration;
+          } else {
+            turnVelocity *= turnFriction;
+          }
           turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
-          if (Math.abs(velocity) > 0.001) cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
+    
+          if (Math.abs(velocity) > 0.001) {
+            cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
+          }
           cube.translateZ(velocity);
           if (Math.abs(velocity) > 0.001 || Math.abs(turnVelocity) > 0.001) {
             lastMovementTime = Date.now();
-
           }
-          let lastTime;
-
-function animate(time) {
-  requestAnimationFrame(animate);
-
-  if (lastTime !== undefined) {
-    const deltaTime = (time - lastTime) / 1000; // delta time in seconds
-    updatePhysics(deltaTime);
-  }
-
-  lastTime = time;
-
-  // Render your scene:
-  renderer.render(scene, camera);
-}
-
-requestAnimationFrame(animate);
-
-          
+    
+          // --- Physics Update ---
+          if (prevTime !== undefined) {
+            const deltaTime = (time - prevTime) / 1000;
+            updatePhysics(deltaTime);
+          }
+          prevTime = time;
+    
+          // --- Camera Follow ---
           camera.position.set(
             cube.position.x + Math.sin(cube.rotation.y) * 10,
             cube.position.y + 5,
             cube.position.z + Math.cos(cube.rotation.y) * 10
           );
           camera.lookAt(cube.position);
-          
-          // Predictive interpolation for remote players
+    
+          // --- Remote Players Interpolation ---
           Object.values(otherPlayers).forEach(car => {
             const target = car.userData.target;
             if (!target) return;
             car.position.lerp(new THREE.Vector3(target.x, target.y, target.z), 0.1);
             car.rotation.y += (target.rotation - car.rotation.y) * 0.1;
           });
-          
+    
+          // --- Update Local Player State Every 50ms ---
           if (Date.now() - lastUpdate > 50) {
             updatePlayerState();
             lastUpdate = Date.now();
           }
-          
+    
+          // --- Render Scene and CSS Labels ---
           renderer.render(scene, camera);
           labelRenderer.render(scene, camera);
         }
         
         registerPlayer();
-        animate();
+        requestAnimationFrame(animate);
       });
     </script>
+    
   </body>
 </html>
