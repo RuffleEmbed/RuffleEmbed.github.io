@@ -182,7 +182,7 @@
           }
 
 
-          setInterval(getPlayersRealtime, 10);
+          setInterval(getPlayersRealtime, 50);
 
           // Remove the local player's record on unload
           window.addEventListener('beforeunload', async () => {
@@ -227,8 +227,8 @@
             camera.lookAt(cube.position);
 
             // Update player state every 100ms
-            if (Date.now() - lastUpdate > 100) {
-              updatePlayerState();
+            if (Date.now() - lastUpdate > 50) {
+             updatePlayerState();
               lastUpdate = Date.now();
             }
 
