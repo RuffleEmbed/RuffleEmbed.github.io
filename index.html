@@ -382,11 +382,25 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
           cube.translateZ(velocity);
           if (Math.abs(velocity) > 0.001 || Math.abs(turnVelocity) > 0.001) {
             lastMovementTime = Date.now();
-            if (lastTime !== undefined) {
-    const deltaTime = (time - lastTime) / 1000; // convert ms to seconds
+
+          }
+          let lastTime;
+
+function animate(time) {
+  requestAnimationFrame(animate);
+
+  if (lastTime !== undefined) {
+    const deltaTime = (time - lastTime) / 1000; // delta time in seconds
     updatePhysics(deltaTime);
   }
-          }
+
+  lastTime = time;
+
+  // Render your scene:
+  renderer.render(scene, camera);
+}
+
+requestAnimationFrame(animate);
 
           
           camera.position.set(
