@@ -49,12 +49,13 @@
         white-space: nowrap;
       }
     </style>
-    <!-- Import map for Three.js -->
+    <!-- Import map for Three.js and Cannon.js -->
     <script type="importmap">
       {
         "imports": {
           "three": "https://cdn.jsdelivr.net/npm/three@0.175.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.175.0/examples/jsm/"
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.175.0/examples/jsm/",
+          "cannon": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
         }
       }
     </script>
@@ -69,6 +70,7 @@
       import * as THREE from 'three';
       import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
       import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+      import * as CANNON from 'cannon';
       
       // Supabase configuration
       const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
@@ -165,40 +167,39 @@
         labelRenderer.domElement.style.pointerEvents = 'none';
         document.body.appendChild(labelRenderer.domElement);
         
-        window.addEventListener('resize', () => {
-          camera.aspect = window.innerWidth / window.innerHeight;
-          camera.updateProjectionMatrix();
-          renderer.setSize(window.innerWidth, window.innerHeight);
-          labelRenderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        // Cannon.js world setup
+        const world = new CANNON.World();
+        world.gravity.set(0, -9.82, 0); // Gravity force
+        world.broadphase = new CANNON.NaiveBroadphase();
+        world.solver = new CANNON.GSSolver();
+        world.defaultContactMaterial.contactEquationStiffness = 1e7;
+        world.defaultContactMaterial.contactEquationRelaxation = 3;
         
-        const grid = new THREE.GridHelper(100, 100);
-scene.add(grid);
-
-// Load and configure the texture
-const texture = new THREE.TextureLoader().load('/grass.png');
-texture.wrapS = THREE.RepeatWrapping;
-texture.wrapT = THREE.RepeatWrapping;
-texture.colorSpace = THREE.SRGBColorSpace;
-texture.repeat.set(12, 12);
-
-// Create material with the texture
-const planeMaterial = new THREE.MeshStandardMaterial({ map: texture });
-
-// Create and rotate the plane
-const plane = new THREE.Mesh(
-  new THREE.PlaneGeometry(100, 100),
-  planeMaterial
-);
-plane.rotation.x = -Math.PI / 2;
-scene.add(plane);
-
-        // Local player's car (red cube)
-        const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
-        const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-        cube.position.y = 0.5;
-        scene.add(cube);
+        const cubeMaterial = new CANNON.Material("cubeMaterial");
+        
+        // Create a plane (ground)
+        const groundBody = new CANNON.Body({
+          mass: 0, // mass = 0 means static
+          position: new CANNON.Vec3(0, 0, 0),
+        });
+        const groundShape = new CANNON.Plane();
+        groundBody.addShape(groundShape);
+        world.addBody(groundBody);
+        
+        // Local player's car (using cannon.js for physics)
+        const car = new THREE.Mesh(
+          new THREE.BoxGeometry(2, 1, 4),
+          new THREE.MeshStandardMaterial({ color: 0xff0000 })
+        );
+        car.position.y = 0.5;
+        scene.add(car);
+        
+        const carBody = new CANNON.Body({
+          mass: 1, // non-zero mass means it's dynamic
+          position: new CANNON.Vec3(0, 0.5, 0),
+          shape: new CANNON.Box(new CANNON.Vec3(1, 0.5, 2)),
+        });
+        world.addBody(carBody);
         
         // Lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); 
@@ -211,179 +212,23 @@ scene.add(plane);
         
         camera.position.set(0, 10, 15);
         camera.lookAt(0, 0, 0);
-        
-        // Movement variables for local player
-        let keys = {}, velocity = 0, turnVelocity = 0;
-        const acceleration = 0.01, maxSpeed = 0.5, friction = 0.98;
-        const turnAcceleration = 0.002, turnFriction = 0.9, maxTurnSpeed = 0.05;
-        
-        window.addEventListener('keydown', e => keys[e.key] = true);
-        window.addEventListener('keyup', e => keys[e.key] = false);
-        
-        // Store remote players and their data
-        const otherPlayers = {};
-        
-        // Register local player in Supabase
-        async function registerPlayer() {
-          try {
-            await supabaseClient.from('editors').upsert([{
-              player_id: playerId,
-              x: cube.position.x,
-              y: cube.position.y,
-              z: cube.position.z,
-              rotation: cube.rotation.y,
-            }], { onConflict: ['player_id'] });
-          } catch (err) {
-            console.error("Error registering player:", err);
-          }
-        }
-        // Ramp setup
-      const rampGeometry = new THREE.BoxGeometry(10, 1, 20); // width, height, depth
-      const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Brown ramp
-      const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
 
-// Position and rotate ramp
-    ramp.position.set(10, 0.5, -20); // Adjust position as needed
-    ramp.rotation.x = -Math.PI / 8;  // Tilt to create a ramp angle (~22.5 degrees)
-    scene.add(ramp);
-
-        async function checkIdleTimeout() {
-  const now = Date.now();
-  const idleTime = now - lastMovementTime;
-
-  if (idleTime > 2 * 60 * 1000) { // 2 minutes
-    await supabaseClient.from('messages').insert([{
-      player_id: playerId,
-      text: "was kicked due to inactivity."
-    }]);
-
-    await supabaseClient.from('editors').delete().match({ player_id: playerId });
-
-    alert("You were kicked due to inactivity.");
-    location.reload();
-  }
-}
-
-
-setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
-
-        // Update local player state in Supabase
-        async function updatePlayerState() {
-          try {
-            await supabaseClient.from('editors').update({
-              x: cube.position.x,
-              y: cube.position.y,
-              z: cube.position.z,
-              rotation: cube.rotation.y,
-            }).match({ player_id: playerId });
-          } catch (err) {
-            console.error("Error updating player state:", err);
-          }
-        }
-        
-        // Poll remote players for state (excluding local player)
-        async function getPlayersRealtime() {
-          try {
-            const { data } = await supabaseClient.from('editors').select('*').neq('player_id', playerId);
-            if (!Array.isArray(data)) return;
-            data.forEach(p => {
-              let car = otherPlayers[p.player_id];
-              if (!car) {
-                car = new THREE.Mesh(cubeGeometry, new THREE.MeshStandardMaterial({ color: 0x0000ff }));
-                car.position.set(p.x, p.y, p.z);
-                car.rotation.y = p.rotation;
-                car.userData.target = { x: p.x, y: p.y, z: p.z, rotation: p.rotation };
-                // No floating label yet
-                car.userData.chatLabel = null;
-                scene.add(car);
-                otherPlayers[p.player_id] = car;
-              } else {
-                car.userData.target = { x: p.x, y: p.y, z: p.z, rotation: p.rotation };
-              }
-            });
-          } catch (err) {
-            console.error("Error in getPlayersRealtime:", err);
-          }
-        }
-        setInterval(getPlayersRealtime, 50);
-        
-        // Show a floating chat message above a car (local or remote)
-        function showFloatingMessage(targetPlayerId, message) {
-          // Get the corresponding car: local (cube) or remote
-          let car = (targetPlayerId === playerId) ? cube : otherPlayers[targetPlayerId];
-          if (!car) return;
-          if (car.userData.chatLabel) {
-            car.userData.chatLabel.element.innerHTML = message;
-            clearTimeout(car.userData.chatLabel.timer);
-          } else {
-            const div = document.createElement('div');
-            div.className = 'floating-chat';
-            div.innerHTML = message;
-            const labelObject = new CSS2DObject(div);
-            labelObject.position.set(0, 2, 0); // Adjust offset as needed
-            car.add(labelObject);
-            car.userData.chatLabel = labelObject;
-          }
-          car.userData.chatLabel.timer = setTimeout(() => {
-            if (car.userData.chatLabel) {
-              car.remove(car.userData.chatLabel);
-              car.userData.chatLabel = null;
-            }
-          }, 5000);
-        }
-        
-        // Remove local player's record on unload
-        window.addEventListener('beforeunload', () => {
-          supabaseClient.from('editors').delete().match({ player_id: playerId });
-        });
-        
-        // Animation loop for local player movement and rendering
-        let lastUpdate = Date.now();
-        let lastMovementTime = Date.now();
-
+        // Update function for physics and rendering
         function animate() {
           requestAnimationFrame(animate);
-          if (keys["ArrowUp"]) velocity -= acceleration;
-          if (keys["ArrowDown"]) velocity += acceleration;
-          velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity)) * friction;
           
-          if (keys["ArrowRight"]) turnVelocity += turnAcceleration;
-          else if (keys["ArrowLeft"]) turnVelocity -= turnAcceleration;
-          else turnVelocity *= turnFriction;
+          // Update physics world
+          world.step(1/60);
           
-          turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
-          if (Math.abs(velocity) > 0.001) cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
-          cube.translateZ(velocity);
-          if (Math.abs(velocity) > 0.001 || Math.abs(turnVelocity) > 0.001) {
-            lastMovementTime = Date.now();
-          }
-
+          // Sync Three.js car with Cannon.js body
+          car.position.copy(carBody.position);
+          car.rotation.copy(carBody.rotation);
           
-          camera.position.set(
-            cube.position.x + Math.sin(cube.rotation.y) * 10,
-            cube.position.y + 5,
-            cube.position.z + Math.cos(cube.rotation.y) * 10
-          );
-          camera.lookAt(cube.position);
-          
-          // Predictive interpolation for remote players
-          Object.values(otherPlayers).forEach(car => {
-            const target = car.userData.target;
-            if (!target) return;
-            car.position.lerp(new THREE.Vector3(target.x, target.y, target.z), 0.1);
-            car.rotation.y += (target.rotation - car.rotation.y) * 0.1;
-          });
-          
-          if (Date.now() - lastUpdate > 50) {
-            updatePlayerState();
-            lastUpdate = Date.now();
-          }
-          
+          // Render the scene
           renderer.render(scene, camera);
           labelRenderer.render(scene, camera);
         }
         
-        registerPlayer();
         animate();
       });
     </script>
