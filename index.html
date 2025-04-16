@@ -264,6 +264,7 @@ scene.add(plane);
     location.reload();
   }
 }
+      
 
 
 setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
@@ -357,7 +358,6 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
           cube.translateZ(velocity);
           if (Math.abs(velocity) > 0.001 || Math.abs(turnVelocity) > 0.001) {
             lastMovementTime = Date.now();
-            updatePhysics();
             world.step(1 / 60);
 cube.position.copy(carBody.position);
 cube.quaternion.copy(carBody.quaternion);
@@ -367,7 +367,7 @@ cube.quaternion.copy(carBody.quaternion);
           
           
           
-}
+
 const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
 
@@ -419,7 +419,7 @@ world.addBody(rampBody);
           renderer.render(scene, camera);
           labelRenderer.render(scene, camera);
         }
-        
+      
         registerPlayer();
         animate();
       });
