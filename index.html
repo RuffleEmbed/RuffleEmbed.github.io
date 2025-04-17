@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Multiplayer Car Simulation with Chat and Physics</title>
+    <title>Multiplayer Car Simulation with Chat</title>
     <style>
       body { margin: 0; overflow: hidden; }
       canvas { display: block; }
@@ -48,68 +48,6 @@
         font-size: 12px;
         white-space: nowrap;
       }
-      /* Loading indicator */
-      #loading {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.8);
-        color: white;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        z-index: 100;
-        font-family: Arial, sans-serif;
-      }
-      #loading-spinner {
-        border: 4px solid rgba(255,255,255,0.3);
-        border-radius: 50%;
-        border-top: 4px solid white;
-        width: 40px;
-        height: 40px;
-        animation: spin 1s linear infinite;
-        margin-bottom: 20px;
-      }
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-      #error-message {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.9);
-        color: white;
-        display: none;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        z-index: 100;
-        font-family: Arial, sans-serif;
-        text-align: center;
-        padding: 20px;
-      }
-      #error-message button {
-        margin-top: 20px;
-        padding: 10px 20px;
-        font-size: 16px;
-        cursor: pointer;
-      }
-      #offline-mode-button {
-        margin-top: 20px;
-        padding: 10px 20px;
-        font-size: 16px;
-        cursor: pointer;
-        background: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 5px;
-      }
     </style>
     <!-- Import map for Three.js -->
     <script type="importmap">
@@ -120,28 +58,9 @@
         }
       }
     </script>
-    <!-- Import Cannon.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-    <!-- Import Supabase directly -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    
   </head>
   <body>
-    <!-- Loading indicator -->
-    <div id="loading">
-      <div id="loading-spinner"></div>
-      <h2>Loading Car Simulation...</h2>
-      <p>Connecting to multiplayer servers...</p>
-      <button id="offline-mode-button">Start in Offline Mode</button>
-    </div>
-    
-    <!-- Error display -->
-    <div id="error-message">
-      <h2>Error Loading Car Simulation</h2>
-      <p id="error-details">There was a problem connecting to the game servers.</p>
-      <button onclick="location.reload()">Retry</button>
-      <button id="force-offline-mode">Continue in Offline Mode</button>
-    </div>
-    
     <!-- Global Chat Log and Input -->
     <div id="chat-log"></div>
     <input id="chat-input" type="text" placeholder="Type your message..." />
@@ -149,598 +68,324 @@
     <script type="module">
       import * as THREE from 'three';
       import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+      import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
       
-      // Global variables
-      let offlineMode = false;
-      const loadingElement = document.getElementById('loading');
-      const errorElement = document.getElementById('error-message');
-      const errorDetails = document.getElementById('error-details');
-      const offlineModeButton = document.getElementById('offline-mode-button');
-      const forceOfflineButton = document.getElementById('force-offline-mode');
+      // Supabase configuration
+      const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU';
+      const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
       
-      // Check if dependencies loaded
-      if (!THREE) {
-        showError("THREE.js failed to load! Please check your connection and try again.");
-        throw new Error("THREE.js failed to load");
-      }
+      // Unique player ID saved in localStorage
+      let playerId = localStorage.getItem('playerId') || '_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('playerId', playerId);
+      console.log("Player ID:", playerId);
       
-      if (!window.CANNON) {
-        showError("CANNON.js failed to load! Please check your connection and try again.");
-        throw new Error("CANNON.js failed to load");
-      }
+      // Chat elements
+      const chatLog = document.getElementById('chat-log');
+      const chatInput = document.getElementById('chat-input');
+      let chatMode = false;
       
-      // Offline mode buttons
-      offlineModeButton.addEventListener('click', () => {
-        offlineMode = true;
-        loadingElement.style.display = 'none';
-        initApp();
-      });
-      
-      forceOfflineButton.addEventListener('click', () => {
-        offlineMode = true;
-        errorElement.style.display = 'none';
-        initApp();
-      });
-      
-      function showError(message) {
-        loadingElement.style.display = 'none';
-        errorElement.style.display = 'flex';
-        errorDetails.textContent = message;
-        console.error(message);
-      }
-      
-      // Create a simple loader for the Supabase library with fallback
-      const loadSupabase = async () => {
-        try {
-          // Check if Supabase is already loaded from the script tag
-          if (window.supabase) {
-            console.log("Using Supabase from global script");
-            return window.supabase.createClient;
-          }
-          
-          // Try dynamic import as fallback
-          console.log("Trying dynamic import for Supabase");
-          const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm');
-          return createClient;
-        } catch (err) {
-          console.error("Failed to load Supabase client:", err);
-          showError("Failed to load Supabase client. Try offline mode or check your connection.");
-          throw err;
+      // Chat keyboard handling
+      window.addEventListener('keydown', (e) => {
+        if (e.key === "Enter" && !chatMode) {
+          chatMode = true;
+          chatInput.style.display = "block";
+          chatInput.focus();
+          return;
         }
-      };
+        if (e.key === "Enter" && chatMode && document.activeElement === chatInput) {
+          e.preventDefault();
+          const message = chatInput.value.trim();
+          if (message !== "") {
+            sendMessage(message);
+          }
+          chatInput.value = "";
+          chatInput.blur();
+          chatInput.style.display = "none";
+          chatMode = false;
+        }
+        if (chatMode && e.key !== "Enter") {
+          e.stopPropagation();
+        }
+      });
       
-      // Initialize Supabase or return a mock client for offline mode
-      async function initializeSupabase() {
-        if (offlineMode) {
-          console.log("Running in offline mode with mock Supabase client");
-          // Return a mock Supabase client for offline mode
-          return {
-            from: () => ({
-              upsert: () => Promise.resolve({ data: null, error: null }),
-              update: () => Promise.resolve({ data: null, error: null }),
-              delete: () => Promise.resolve({ data: null, error: null }),
-              select: () => Promise.resolve({ data: [], error: null }),
-              match: () => Promise.resolve({ data: null, error: null }),
-              neq: () => Promise.resolve({ data: [], error: null }),
-              insert: () => Promise.resolve({ data: null, error: null }),
-              order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) })
-            })
-          };
+      // Send a chat message to Supabase
+      async function sendMessage(text) {
+        try {
+          await supabaseClient.from('messages').insert([{ player_id: playerId, text }]);
+        } catch (err) {
+          console.error("Failed to send message:", err);
+        }
+      }
+      
+      // Global chat polling (fetch messages every 2 seconds)
+      async function fetchMessages() {
+        try {
+          const { data, error } = await supabaseClient
+            .from('messages')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(20);
+          if (error) {
+            console.error("Error fetching messages:", error);
+            return;
+          }
+          if (!Array.isArray(data)) return;
+          // Update global chat log (oldest at top)
+          chatLog.innerHTML = data.reverse().map(m => `<div><strong>${m.player_id}</strong>: ${m.text}</div>`).join('');
+          
+          // For messages within the last 5 seconds, show floating labels
+          data.forEach(message => {
+            const msgTime = new Date(message.created_at).getTime();
+            if (Date.now() - msgTime < 5000) {
+              showFloatingMessage(message.player_id, message.text);
+            }
+          });
+        } catch (err) {
+          console.error("Error in fetchMessages:", err);
+        }
+      }
+      setInterval(fetchMessages, 2000);
+      
+      // Three.js Scene Setup
+      document.addEventListener("DOMContentLoaded", () => {
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+        
+        // CSS2DRenderer for floating chat messages
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(labelRenderer.domElement);
+        
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        const grid = new THREE.GridHelper(100, 100);
+scene.add(grid);
+
+// Load and configure the texture
+const texture = new THREE.TextureLoader().load('/grass.png');
+texture.wrapS = THREE.RepeatWrapping;
+texture.wrapT = THREE.RepeatWrapping;
+texture.colorSpace = THREE.SRGBColorSpace;
+texture.repeat.set(12, 12);
+
+// Create material with the texture
+const planeMaterial = new THREE.MeshStandardMaterial({ map: texture });
+
+// Create and rotate the plane
+const plane = new THREE.Mesh(
+  new THREE.PlaneGeometry(100, 100),
+  planeMaterial
+);
+plane.rotation.x = -Math.PI / 2;
+scene.add(plane);
+
+        // Local player's car (red cube)
+        const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
+        const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+        cube.position.y = 0.5;
+        scene.add(cube);
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); 
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 20, 10);
+        scene.add(directionalLight);
+
+        
+        camera.position.set(0, 10, 15);
+        camera.lookAt(0, 0, 0);
+        
+        // Movement variables for local player
+        let keys = {}, velocity = 0, turnVelocity = 0;
+        const acceleration = 0.01, maxSpeed = 0.5, friction = 0.98;
+        const turnAcceleration = 0.002, turnFriction = 0.9, maxTurnSpeed = 0.05;
+        
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
+        
+        // Store remote players and their data
+        const otherPlayers = {};
+        
+        // Register local player in Supabase
+        async function registerPlayer() {
+          try {
+            await supabaseClient.from('editors').upsert([{
+              player_id: playerId,
+              x: cube.position.x,
+              y: cube.position.y,
+              z: cube.position.z,
+              rotation: cube.rotation.y,
+            }], { onConflict: ['player_id'] });
+          } catch (err) {
+            console.error("Error registering player:", err);
+          }
+        }
+        // Ramp setup
+      const rampGeometry = new THREE.BoxGeometry(10, 1, 20); // width, height, depth
+      const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Brown ramp
+      const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
+
+// Position and rotate ramp
+    ramp.position.set(10, 0.5, -20); // Adjust position as needed
+    ramp.rotation.x = -Math.PI / 8;  // Tilt to create a ramp angle (~22.5 degrees)
+    scene.add(ramp);
+
+        async function checkIdleTimeout() {
+  const now = Date.now();
+  const idleTime = now - lastMovementTime;
+
+  if (idleTime > 2 * 60 * 1000) { // 2 minutes
+    await supabaseClient.from('messages').insert([{
+      player_id: playerId,
+      text: "was kicked due to inactivity."
+    }]);
+
+    await supabaseClient.from('editors').delete().match({ player_id: playerId });
+
+    alert("You were kicked due to inactivity.");
+    location.reload();
+  }
+}
+
+
+setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
+
+        // Update local player state in Supabase
+        async function updatePlayerState() {
+          try {
+            await supabaseClient.from('editors').update({
+              x: cube.position.x,
+              y: cube.position.y,
+              z: cube.position.z,
+              rotation: cube.rotation.y,
+            }).match({ player_id: playerId });
+          } catch (err) {
+            console.error("Error updating player state:", err);
+          }
         }
         
-        try {
-          const createClient = await loadSupabase();
-          // Supabase configuration
-          const SUPABASE_URL = 'https://skhdesewdziqujemittx.supabase.co';
-          const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGRlc2V3ZHppcXVqZW1pdHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc0MTczNCwiZXhwIjoyMDYwMzE3NzM0fQ.kZBOW2U2i7Gkz6dv7_uZ-hBYPxGPY-8s8nt7XhiWSpU';
-          return createClient(SUPABASE_URL, SUPABASE_KEY);
-        } catch (err) {
-          console.error("Failed to initialize Supabase:", err);
-          showError("Failed to connect to multiplayer servers. Try offline mode or check your connection.");
-          throw err;
-        }
-      }
-      
-      // Main application function
-      async function initApp() {
-        try {
-          // Initialize Supabase (real or mock)
-          const supabaseClient = await initializeSupabase();
-          console.log("Supabase client initialized successfully");
-          
-          // Unique player ID saved in localStorage
-          let playerId = localStorage.getItem('playerId') || '_' + Math.random().toString(36).substr(2, 9);
-          localStorage.setItem('playerId', playerId);
-          console.log("Player ID:", playerId);
-          
-          // Chat elements
-          const chatLog = document.getElementById('chat-log');
-          const chatInput = document.getElementById('chat-input');
-          let chatMode = false;
-          
-          // Chat keyboard handling
-          window.addEventListener('keydown', (e) => {
-            if (e.key === "Enter" && !chatMode) {
-              chatMode = true;
-              chatInput.style.display = "block";
-              chatInput.focus();
-              return;
-            }
-            if (e.key === "Enter" && chatMode && document.activeElement === chatInput) {
-              e.preventDefault();
-              const message = chatInput.value.trim();
-              if (message !== "") {
-                sendMessage(message);
-              }
-              chatInput.value = "";
-              chatInput.blur();
-              chatInput.style.display = "none";
-              chatMode = false;
-            }
-            if (chatMode && e.key !== "Enter") {
-              e.stopPropagation();
-            }
-          });
-          
-          // Send a chat message to Supabase
-          async function sendMessage(text) {
-            try {
-              if (offlineMode) {
-                // In offline mode, just show local message
-                showFloatingMessage(playerId, text);
-                chatLog.innerHTML += `<div><strong>${playerId}</strong>: ${text}</div>`;
-                return;
-              }
-              
-              await supabaseClient.from('messages').insert([{ player_id: playerId, text }]);
-            } catch (err) {
-              console.error("Failed to send message:", err);
-              // Still show message locally even if server update fails
-              showFloatingMessage(playerId, text);
-            }
-          }
-          
-          // Global chat polling (fetch messages every 2 seconds)
-          async function fetchMessages() {
-            if (offlineMode) return; // Skip in offline mode
-            
-            try {
-              const { data, error } = await supabaseClient
-                .from('messages')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(20);
-              if (error) {
-                console.error("Error fetching messages:", error);
-                return;
-              }
-              if (!Array.isArray(data)) return;
-              // Update global chat log (oldest at top)
-              chatLog.innerHTML = data.reverse().map(m => `<div><strong>${m.player_id}</strong>: ${m.text}</div>`).join('');
-              
-              // For messages within the last 5 seconds, show floating labels
-              data.forEach(message => {
-                const msgTime = new Date(message.created_at).getTime();
-                if (Date.now() - msgTime < 5000) {
-                  showFloatingMessage(message.player_id, message.text);
-                }
-              });
-            } catch (err) {
-              console.error("Error in fetchMessages:", err);
-            }
-          }
-          
-          if (!offlineMode) {
-            setInterval(fetchMessages, 2000);
-          }
-          
-          // Three.js Scene Setup
-          const scene = new THREE.Scene();
-          scene.background = new THREE.Color(0x87ceeb); // Sky blue
-          
-          const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-          const renderer = new THREE.WebGLRenderer({ antialias: true });
-          renderer.setSize(window.innerWidth, window.innerHeight);
-          document.body.appendChild(renderer.domElement);
-          
-          // CSS2DRenderer for floating chat messages
-          const labelRenderer = new CSS2DRenderer();
-          labelRenderer.setSize(window.innerWidth, window.innerHeight);
-          labelRenderer.domElement.style.position = 'absolute';
-          labelRenderer.domElement.style.top = '0px';
-          labelRenderer.domElement.style.pointerEvents = 'none';
-          document.body.appendChild(labelRenderer.domElement);
-          
-          window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            labelRenderer.setSize(window.innerWidth, window.innerHeight);
-          });
-          
-          // Setup Cannon.js physics world
-          const world = new CANNON.World();
-          world.gravity.set(0, -9.82, 0); // Earth gravity
-          world.broadphase = new CANNON.NaiveBroadphase();
-          world.solver.iterations = 10;
-          world.defaultContactMaterial.friction = 0.3;
-          
-          // Create ground material
-          const groundMaterial = new CANNON.Material('groundMaterial');
-          const groundContactMaterial = new CANNON.ContactMaterial(
-            groundMaterial, 
-            groundMaterial,
-            {
-              friction: 0.4,
-              restitution: 0.3 // Some bounce
-            }
-          );
-          world.addContactMaterial(groundContactMaterial);
-          
-          // Create ground physics body
-          const groundShape = new CANNON.Plane();
-          const groundBody = new CANNON.Body({ mass: 0, material: groundMaterial }); // mass 0 = static
-          groundBody.addShape(groundShape);
-          groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2); // rotate to be flat
-          world.addBody(groundBody);
-          
-          // Create ramp physics body
-          const rampShape = new CANNON.Box(new CANNON.Vec3(5, 0.5, 10)); // half-dimensions
-          const rampBody = new CANNON.Body({ mass: 0, material: groundMaterial });
-          rampBody.addShape(rampShape);
-          rampBody.position.set(10, 0.5, -20);
-          rampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 8);
-          world.addBody(rampBody);
-          
-          // Visual scene setup
-          const grid = new THREE.GridHelper(100, 100);
-          scene.add(grid);
-          
-          // Create ground plane with a simple color instead of texture
-          const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x88aa88 });
-          const plane = new THREE.Mesh(
-            new THREE.PlaneGeometry(100, 100),
-            planeMaterial
-          );
-          plane.rotation.x = -Math.PI / 2;
-          scene.add(plane);
-          
-          // Add obstacles for more interesting driving
-          function addObstacle(x, y, z, width, height, depth, color) {
-            // Physics
-            const shape = new CANNON.Box(new CANNON.Vec3(width/2, height/2, depth/2));
-            const body = new CANNON.Body({ mass: 0, material: groundMaterial });
-            body.addShape(shape);
-            body.position.set(x, y, z);
-            world.addBody(body);
-            
-            // Visual
-            const geometry = new THREE.BoxGeometry(width, height, depth);
-            const material = new THREE.MeshStandardMaterial({ color });
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.set(x, y, z);
-            scene.add(mesh);
-          }
-          
-          // Add some obstacles
-          addObstacle(-15, 1, -10, 4, 2, 4, 0xff8800);  // Orange block
-          addObstacle(5, 1, 15, 3, 2, 3, 0x00ff00);    // Green block
-          addObstacle(-5, 1, -25, 10, 2, 2, 0xff00ff); // Pink wall
-          
-          // Local player's car (red cube)
-          const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
-          const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-          const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-          cube.position.y = 1; // Start slightly above ground
-          scene.add(cube);
-          
-          // Car physics body
-          const carMaterial = new CANNON.Material('carMaterial');
-          const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2)); // half-dimensions
-          
-          const carBody = new CANNON.Body({ 
-            mass: 500, // car mass in kg
-            material: carMaterial,
-            angularDamping: 0.5, // reduce spin
-            linearDamping: 0.3  // add some air resistance
-          });
-          carBody.addShape(carShape);
-          carBody.position.set(cube.position.x, cube.position.y, cube.position.z);
-          carBody.quaternion.set(0, 0, 0, 1);
-          world.addBody(carBody);
-          
-          // Car-ground contact material
-          const carGroundContactMaterial = new CANNON.ContactMaterial(
-            groundMaterial,
-            carMaterial,
-            {
-              friction: 0.5,
-              restitution: 0.3
-            }
-          );
-          world.addContactMaterial(carGroundContactMaterial);
-          
-          // Ramp visual object
-          const rampGeometry = new THREE.BoxGeometry(10, 1, 20); // width, height, depth
-          const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Brown ramp
-          const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
-          
-          // Position and rotate ramp (matches physics body)
-          ramp.position.copy(rampBody.position);
-          ramp.quaternion.copy(rampBody.quaternion);
-          scene.add(ramp);
-          
-          // Lighting
-          const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); 
-          scene.add(ambientLight);
-
-          const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-          directionalLight.position.set(10, 20, 10);
-          scene.add(directionalLight);
-          
-          camera.position.set(0, 10, 15);
-          camera.lookAt(0, 0, 0);
-          
-          // Movement variables for local player
-          const keys = {};
-          const maxForce = 5000;
-          const maxSteerVal = 0.5;
-          let steeringVal = 0;
-          
-          // Add help text
-          const helpDiv = document.createElement('div');
-          helpDiv.style.position = 'absolute';
-          helpDiv.style.top = '10px';
-          helpDiv.style.right = '10px';
-          helpDiv.style.background = 'rgba(0,0,0,0.5)';
-          helpDiv.style.color = 'white';
-          helpDiv.style.padding = '10px';
-          helpDiv.style.borderRadius = '5px';
-          helpDiv.style.fontFamily = 'Arial, sans-serif';
-          helpDiv.style.zIndex = '100';
-          helpDiv.innerHTML = `
-            <h3 style="margin-top:0">Controls:</h3>
-            <p>Arrow keys: Drive<br>
-            Space: Jump<br>
-            Enter: Chat<br>
-            ${offlineMode ? '<strong>OFFLINE MODE</strong>' : ''}</p>
-          `;
-          document.body.appendChild(helpDiv);
-          
-          window.addEventListener('keydown', e => keys[e.key] = true);
-          window.addEventListener('keyup', e => keys[e.key] = false);
-          
-          // Store remote players and their data
-          const otherPlayers = {};
-          const otherPlayerBodies = {};
-          
-          // Register local player in Supabase
-          async function registerPlayer() {
-            if (offlineMode) return Promise.resolve(); // Skip in offline mode
-            
-            try {
-              await supabaseClient.from('editors').upsert([{
-                player_id: playerId,
-                x: cube.position.x,
-                y: cube.position.y,
-                z: cube.position.z,
-                rotation: cube.rotation.y,
-              }], { onConflict: ['player_id'] });
-              console.log("Player registered successfully");
-            } catch (err) {
-              console.error("Error registering player:", err);
-              // Continue anyway - we'll be in semi-offline mode
-            }
-          }
-          
-          let lastMovementTime = Date.now();
-          
-          async function checkIdleTimeout() {
-            if (offlineMode) return; // Skip in offline mode
-            
-            const now = Date.now();
-            const idleTime = now - lastMovementTime;
-
-            if (idleTime > 2 * 60 * 1000) { // 2 minutes
-              try {
-                await supabaseClient.from('messages').insert([{
-                  player_id: playerId,
-                  text: "was kicked due to inactivity."
-                }]);
-
-                await supabaseClient.from('editors').delete().match({ player_id: playerId });
-              } catch (err) {
-                console.error("Error in idle timeout:", err);
-              }
-
-              alert("You were kicked due to inactivity.");
-              location.reload();
-            }
-          }
-          
-          if (!offlineMode) {
-            setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
-          }
-          
-          // Update local player state in Supabase
-          async function updatePlayerState() {
-            if (offlineMode) return; // Skip in offline mode
-            
-            try {
-              await supabaseClient.from('editors').update({
-                x: cube.position.x,
-                y: cube.position.y,
-                z: cube.position.z,
-                rotation: cube.rotation.y,
-              }).match({ player_id: playerId });
-            } catch (err) {
-              console.error("Error updating player state:", err);
-            }
-          }
-          
-          // Poll remote players for state (excluding local player)
-          async function getPlayersRealtime() {
-            if (offlineMode) return; // Skip in offline mode
-            
-            try {
-              const { data, error } = await supabaseClient.from('editors')
-                .select('*')
-                .neq('player_id', playerId);
-                
-              if (error) {
-                console.error("Error fetching players:", error);
-                return;
-              }
-              
-              if (!Array.isArray(data)) return;
-              
-              // Keep track of active player IDs to remove disconnected players
-              const activePlayerIds = new Set();
-              
-              data.forEach(p => {
-                activePlayerIds.add(p.player_id);
-                let car = otherPlayers[p.player_id];
-                if (!car) {
-                  // Create visual car for remote player
-                  car = new THREE.Mesh(cubeGeometry, new THREE.MeshStandardMaterial({ color: 0x0000ff }));
-                  car.position.set(p.x, p.y, p.z);
-                  car.rotation.y = p.rotation;
-                  scene.add(car);
-                  otherPlayers[p.player_id] = car;
-                  
-                  // Create physics body for remote player
-                  const otherCarBody = new CANNON.Body({ mass: 500, material: carMaterial });
-                  otherCarBody.addShape(carShape);
-                  otherCarBody.position.set(p.x, p.y, p.z);
-                  otherCarBody.quaternion.set(0, Math.sin(p.rotation/2), 0, Math.cos(p.rotation/2));
-                  world.addBody(otherCarBody);
-                  otherPlayerBodies[p.player_id] = otherCarBody;
-                  
-                  // No floating label yet
-                  car.userData.chatLabel = null;
-                } else {
-                  // Update target position
-                  const otherCarBody = otherPlayerBodies[p.player_id];
-                  if (otherCarBody) {
-                    // Apply gentle force toward target position for smoother network physics
-                    const targetPos = new CANNON.Vec3(p.x, p.y, p.z);
-                    const currentPos = otherCarBody.position;
-                    const force = new CANNON.Vec3().copy(targetPos).vsub(currentPos);
-                    force.scale(5, force); // Adjust strength as needed
-                    otherCarBody.applyForce(force, currentPos);
-                    
-                    // Gradually rotate toward target rotation
-                    const targetQuat = new CANNON.Quaternion();
-                    targetQuat.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), p.rotation);
-                    otherCarBody.quaternion.slerp(targetQuat, 0.1, otherCarBody.quaternion);
-                  }
-                }
-              });
-              
-              // Remove disconnected players
-              Object.keys(otherPlayers).forEach(id => {
-                if (!activePlayerIds.has(id)) {
-                  const car = otherPlayers[id];
-                  const body = otherPlayerBodies[id];
-                  if (car) {
-                    scene.remove(car);
-                    delete otherPlayers[id];
-                  }
-                  if (body) {
-                    world.remove(body);
-                    delete otherPlayerBodies[id];
-                  }
-                }
-              });
-            } catch (err) {
-              console.error("Error in getPlayersRealtime:", err);
-            }
-          }
-          
-          if (!offlineMode) {
-            setInterval(getPlayersRealtime, 100); // Reduced polling frequency
-          }
-          
-          // Show a floating chat message above a car (local or remote)
-          function showFloatingMessage(targetPlayerId, message) {
-            // Get the corresponding car: local (cube) or remote
-            let car = (targetPlayerId === playerId) ? cube : otherPlayers[targetPlayerId];
-            if (!car) return;
-            if (car.userData.chatLabel) {
-              car.userData.chatLabel.element.innerHTML = message;
-              clearTimeout(car.userData.chatLabel.timer);
-            } else {
-              const div = document.createElement('div');
-              div.className = 'floating-chat';
-              div.innerHTML = message;
-              const labelObject = new CSS2DObject(div);
-              labelObject.position.set(0, 2, 0); // Adjust offset as needed
-              car.add(labelObject);
-              car.userData.chatLabel = labelObject;
-            }
-            car.userData.chatLabel.timer = setTimeout(() => {
-              if (car && car.userData.chatLabel) {
-                car.remove(car.userData.chatLabel);
+        // Poll remote players for state (excluding local player)
+        async function getPlayersRealtime() {
+          try {
+            const { data } = await supabaseClient.from('editors').select('*').neq('player_id', playerId);
+            if (!Array.isArray(data)) return;
+            data.forEach(p => {
+              let car = otherPlayers[p.player_id];
+              if (!car) {
+                car = new THREE.Mesh(cubeGeometry, new THREE.MeshStandardMaterial({ color: 0x0000ff }));
+                car.position.set(p.x, p.y, p.z);
+                car.rotation.y = p.rotation;
+                car.userData.target = { x: p.x, y: p.y, z: p.z, rotation: p.rotation };
+                // No floating label yet
                 car.userData.chatLabel = null;
+                scene.add(car);
+                otherPlayers[p.player_id] = car;
+              } else {
+                car.userData.target = { x: p.x, y: p.y, z: p.z, rotation: p.rotation };
               }
-            }, 5000);
+            });
+          } catch (err) {
+            console.error("Error in getPlayersRealtime:", err);
           }
-          
-          // Remove local player's record on unload
-          window.addEventListener('beforeunload', () => {
-            if (!offlineMode) {
-              supabaseClient.from('editors').delete().match({ player_id: playerId });
+        }
+        setInterval(getPlayersRealtime, 50);
+        
+        // Show a floating chat message above a car (local or remote)
+        function showFloatingMessage(targetPlayerId, message) {
+          // Get the corresponding car: local (cube) or remote
+          let car = (targetPlayerId === playerId) ? cube : otherPlayers[targetPlayerId];
+          if (!car) return;
+          if (car.userData.chatLabel) {
+            car.userData.chatLabel.element.innerHTML = message;
+            clearTimeout(car.userData.chatLabel.timer);
+          } else {
+            const div = document.createElement('div');
+            div.className = 'floating-chat';
+            div.innerHTML = message;
+            const labelObject = new CSS2DObject(div);
+            labelObject.position.set(0, 2, 0); // Adjust offset as needed
+            car.add(labelObject);
+            car.userData.chatLabel = labelObject;
+          }
+          car.userData.chatLabel.timer = setTimeout(() => {
+            if (car.userData.chatLabel) {
+              car.remove(car.userData.chatLabel);
+              car.userData.chatLabel = null;
             }
+          }, 5000);
+        }
+        
+        // Remove local player's record on unload
+        window.addEventListener('beforeunload', () => {
+          supabaseClient.from('editors').delete().match({ player_id: playerId });
+        });
+        
+        // Animation loop for local player movement and rendering
+        let lastUpdate = Date.now();
+        let lastMovementTime = Date.now();
+
+        function animate() {
+          requestAnimationFrame(animate);
+          if (keys["ArrowUp"]) velocity -= acceleration;
+          if (keys["ArrowDown"]) velocity += acceleration;
+          velocity = Math.max(-maxSpeed, Math.min(maxSpeed, velocity)) * friction;
+          
+          if (keys["ArrowRight"]) turnVelocity += turnAcceleration;
+          else if (keys["ArrowLeft"]) turnVelocity -= turnAcceleration;
+          else turnVelocity *= turnFriction;
+          
+          turnVelocity = Math.max(-maxTurnSpeed, Math.min(maxTurnSpeed, turnVelocity));
+          if (Math.abs(velocity) > 0.001) cube.rotation.y += turnVelocity * (velocity < 0 ? -1 : 1);
+          cube.translateZ(velocity);
+          if (Math.abs(velocity) > 0.001 || Math.abs(turnVelocity) > 0.001) {
+            lastMovementTime = Date.now();
+          }
+
+          
+          camera.position.set(
+            cube.position.x + Math.sin(cube.rotation.y) * 10,
+            cube.position.y + 5,
+            cube.position.z + Math.cos(cube.rotation.y) * 10
+          );
+          camera.lookAt(cube.position);
+          
+          // Predictive interpolation for remote players
+          Object.values(otherPlayers).forEach(car => {
+            const target = car.userData.target;
+            if (!target) return;
+            car.position.lerp(new THREE.Vector3(target.x, target.y, target.z), 0.1);
+            car.rotation.y += (target.rotation - car.rotation.y) * 0.1;
           });
           
-          // Animation loop for local player movement and rendering
-          let lastUpdate = Date.now();
-          let frameCount = 0;
+          if (Date.now() - lastUpdate > 50) {
+            updatePlayerState();
+            lastUpdate = Date.now();
+          }
           
-          function animate() {
-            requestAnimationFrame(animate);
-            frameCount++;
-            
-            try {
-              // Step the physics world (with fixed timestep for stability)
-              world.step(1/60);
-              
-              // Handle car controls
-              const forwardVelocity = carBody.velocity.dot(
-                new CANNON.Vec3(
-                  Math.sin(carBody.quaternion.toEuler().y),
-                  0,
-                  Math.cos(carBody.quaternion.toEuler().y)
-                )
-              );
-              
-              // Steering controls
-              if (keys["ArrowLeft"]) {
-                steeringVal += 0.01;
-                if (steeringVal > maxSteerVal) steeringVal = maxSteerVal;
-                lastMovementTime = Date.now();
-              } else if (keys["ArrowRight"]) {
-                steeringVal -= 0.01;
-                if (steeringVal < -maxSteerVal) steeringVal = -maxSteerVal;
-                lastMovementTime = Date.now();
-              } else {
-                // Return to center gradually
-                steeringVal *= 0.9;
-              }
-              
-              // Apply steering as torque
-              carBody.applyTorque(new CANNON.Vec3(0, steeringVal * maxForce * (forwardVelocity > 0 ? 1 : -1), 0));
-              
-              // Acceleration/braking controls
-              let engineForce = 0;
-              
-              if (keys["ArrowUp"]) {
-                engineForce = maxForce;
-                lastMovementTime = Date.now();
-              }
-              if (keys["ArrowDown"]) {
-                engineForce = -maxForce / 2; // Brake is half as powerful as acceleration
-                lastMovementTime = Date.now();
-              }
-
-            }
+          renderer.render(scene, camera);
+          labelRenderer.render(scene, camera);
+        }
+        
+        registerPlayer();
+        animate();
+      });
+    </script>
+  </body>
+</html>
