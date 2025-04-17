@@ -521,50 +521,63 @@
           prevTime = time;
     
           // --- Local Player Movement ---
-          let forceX = 0, forceZ = 0;
-          
-          if (keys["ArrowUp"]) {
-            // Apply force in the direction the car is facing
-            forceZ = -acceleration * Math.cos(carBody.quaternion.y);
-            forceX = -acceleration * Math.sin(carBody.quaternion.y);
-            carBody.applyLocalForce(new CANNON.Vec3(0, 0, -acceleration), new CANNON.Vec3(0, 0, 0));
-          }
-          
-          if (keys["ArrowDown"]) {
-            // Apply braking or reverse force
-            forceZ = acceleration * Math.cos(carBody.quaternion.y);
-            forceX = acceleration * Math.sin(carBody.quaternion.y);            
-            carBody.applyLocalForce(new CANNON.Vec3(0, 0, acceleration), new CANNON.Vec3(0, 0, 0));
-          }
-          
-          // Apply turning forces
-          if (keys["ArrowRight"]) {
-            carBody.applyTorque(new CANNON.Vec3(0, turnAcceleration, 0));
-          } else if (keys["ArrowLeft"]) {
-            carBody.applyTorque(new CANNON.Vec3(0, -turnAcceleration, 0));
-          }
-          
-          // Apply some damping to rotation
-          carBody.angularVelocity.scale(0.95);
-          
-          // Limit speed
-          const speed = carBody.velocity.length();
-          if (speed > maxSpeed) {
-            carBody.velocity.scale(maxSpeed / speed);
-          }
-          
-          if (Math.abs(forceX) > 0.001 || Math.abs(forceZ) > 0.001) {
-            lastMovementTime = Date.now();
+          // FIXED CAR MOVEMENT: Apply forces in the car's local coordinate system
+          if (!chatMode) {
+            // Reset force accumulation
+            let forceMagnitude = 0;
+            let turnForce = 0;
+            
+            // Forward/backward movement
+            if (keys["ArrowUp"]) {
+              forceMagnitude = acceleration;
+              lastMovementTime = Date.now();
+            } else if (keys["ArrowDown"]) {
+              forceMagnitude = -acceleration / 2; // Reverse is slower
+              lastMovementTime = Date.now();
+            }
+            
+            // Apply force in local coordinates (z-axis points to car's front)
+            if (forceMagnitude !== 0) {
+              carBody.applyLocalForce(
+                new CANNON.Vec3(0, 0, -forceMagnitude), // Negative Z is forward
+                new CANNON.Vec3(0, 0, 0) // Apply at center of mass
+              );
+            }
+            
+            // Left/right turning
+            if (keys["ArrowLeft"]) {
+              turnForce = -turnAcceleration; // Counter-clockwise (left)
+              lastMovementTime = Date.now();
+            } else if (keys["ArrowRight"]) {
+              turnForce = turnAcceleration; // Clockwise (right)
+              lastMovementTime = Date.now();
+            }
+            
+            // Apply torque for turning (around Y axis)
+            if (turnForce !== 0) {
+              carBody.applyTorque(new CANNON.Vec3(0, turnForce, 0));
+            }
+            
+            // Apply additional damping to limit speed
+            const speed = carBody.velocity.length();
+            if (speed > maxSpeed) {
+              carBody.velocity.scale(maxSpeed / speed);
+            }
+            
+            // Apply rotational damping (important to prevent infinite spinning)
+            carBody.angularVelocity.scale(0.95); 
           }
           
           // --- Physics Update ---
           updatePhysics(deltaTime);
     
           // --- Camera Follow ---
+          // Get the car's forward direction from its quaternion
+          const carDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(cube.quaternion);
           camera.position.set(
-            cube.position.x + Math.sin(cube.rotation.y) * 10,
-            cube.position.y + 5,
-            cube.position.z + Math.cos(cube.rotation.y) * 10
+            cube.position.x - carDirection.x * 10, // Position behind the car
+            cube.position.y + 5,                  // Above the car
+            cube.position.z - carDirection.z * 10  // Based on car direction
           );
           camera.lookAt(cube.position);
     
