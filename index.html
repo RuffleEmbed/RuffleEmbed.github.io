@@ -535,20 +535,26 @@
             carBody.force.set(0, 0, 0);
             carBody.angularVelocity.set(0, 0, 0);
             
-            // Get car's forward direction vector
-            const carRotation = carBody.quaternion;
+            // Get car's forward direction vector using CANNON.js methods
+            // Create a forward vector
             const forwardVec = new CANNON.Vec3(0, 0, -1);
-            forwardVec.applyQuaternion(carRotation);
+            
+            // Create a quaternion representing car's rotation
+            const carRotation = carBody.quaternion;
+            
+            // Use vmult to transform the vector (this is CANNON.js way to apply a quaternion)
+            const rotatedForwardVec = new CANNON.Vec3();
+            carRotation.vmult(forwardVec, rotatedForwardVec);
             
             // Forward/backward movement
             if (keys["ArrowUp"] || keys["w"]) {
               // Apply force in car's forward direction
-              const force = forwardVec.scale(carSettings.maxForce);
+              const force = rotatedForwardVec.scale(carSettings.maxForce);
               carBody.applyForce(force, carBody.position);
               lastMovementTime = Date.now();
             } else if (keys["ArrowDown"] || keys["s"]) {
               // Apply force in car's backward direction
-              const force = forwardVec.scale(-carSettings.maxForce * 0.5);
+              const force = rotatedForwardVec.scale(-carSettings.maxForce * 0.5);
               carBody.applyForce(force, carBody.position);
               lastMovementTime = Date.now();
             }
@@ -558,7 +564,7 @@
               // Calculate opposite direction to velocity
               const vel = carBody.velocity.length();
               if (vel > 0.1) {
-                const brakeDir = carBody.velocity.clone().normalize().scale(-1);
+                const brakeDir = carBody.velocity.clone().scale(-1 / vel);
                 const brakeForce = brakeDir.scale(carSettings.maxBrakeForce);
                 carBody.applyForce(brakeForce, carBody.position);
                 lastMovementTime = Date.now();
@@ -579,9 +585,10 @@
             
             // Simple friction to slow down when not accelerating
             if (!keys["ArrowUp"] && !keys["w"] && !keys["ArrowDown"] && !keys["s"]) {
-              const vel = carBody.velocity.clone();
+              const vel = carBody.velocity;
               if (vel.length() > 0.1) {
-                const frictionForce = vel.normalize().scale(-carSettings.frictionForce * carBody.mass);
+                const frictionForce = vel.normalize();
+                frictionForce.scale(-carSettings.frictionForce * carBody.mass);
                 carBody.applyForce(frictionForce, carBody.position);
               }
             }
