@@ -7,7 +7,6 @@
     <style>
       body { margin: 0; overflow: hidden; }
       canvas { display: block; }
-      /* Global Chat Log styling */
       #chat-log {
         position: absolute;
         bottom: 50px;
@@ -23,7 +22,6 @@
         border-radius: 5px;
         z-index: 10;
       }
-      /* Chat Input styling */
       #chat-input {
         position: absolute;
         bottom: 10px;
@@ -39,7 +37,6 @@
         background: white;
         color: black;
       }
-      /* Floating Chat Message styling */
       .floating-chat {
         background: rgba(0, 0, 0, 0.7);
         color: white;
@@ -47,6 +44,17 @@
         border-radius: 5px;
         font-size: 12px;
         white-space: nowrap;
+      }
+      #debug-info {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        font-family: monospace;
+        padding: 5px;
+        border-radius: 5px;
+        pointer-events: none;
       }
     </style>
     <!-- Import map for Three.js -->
@@ -65,6 +73,7 @@
     <!-- Global Chat Log and Input -->
     <div id="chat-log"></div>
     <input id="chat-input" type="text" placeholder="Type your message..." />
+    <div id="debug-info"></div>
     
     <script type="module">
       import * as THREE from 'three';
@@ -84,6 +93,7 @@
       // --- Chat Elements ---
       const chatLog = document.getElementById('chat-log');
       const chatInput = document.getElementById('chat-input');
+      const debugInfo = document.getElementById('debug-info');
       let chatMode = false;
     
       window.addEventListener('keydown', (e) => {
@@ -168,10 +178,6 @@
           renderer.setSize(window.innerWidth, window.innerHeight);
           labelRenderer.setSize(window.innerWidth, window.innerHeight);
         });
-    
-        // Grid and Terrain
-        const grid = new THREE.GridHelper(100, 100);
-        scene.add(grid);
         
         // WebGL Renderer
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -179,8 +185,39 @@
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
     
-        // Load and configure the texture for the ground plane
-        const texture = new THREE.TextureLoader().load('/grass.png');
+        // --- CANNON.js Physics World ---
+        const world = new CANNON.World();
+        world.gravity.set(0, -9.82, 0);
+        world.broadphase = new CANNON.NaiveBroadphase();
+        world.solver.iterations = 10;
+        world.defaultContactMaterial.friction = 0.3;
+        
+        // Ground plane physics material
+        const groundPhysMaterial = new CANNON.Material("groundMaterial");
+        const wheelPhysMaterial = new CANNON.Material("wheelMaterial");
+        const groundWheelContactMaterial = new CANNON.ContactMaterial(
+          groundPhysMaterial,
+          wheelPhysMaterial,
+          { 
+            friction: 0.5, 
+            restitution: 0.3,
+            contactEquationStiffness: 1000
+          }
+        );
+        world.addContactMaterial(groundWheelContactMaterial);
+
+        // Ground physics body
+        const groundShape = new CANNON.Plane();
+        const groundBody = new CANNON.Body({ 
+          mass: 0,
+          material: groundPhysMaterial
+        });
+        groundBody.addShape(groundShape);
+        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI/2);
+        world.addBody(groundBody);
+        
+        // --- Load Ground Texture ---
+        const texture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/terrain/grasslight-big.jpg');
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
         texture.colorSpace = THREE.SRGBColorSpace;
@@ -192,35 +229,127 @@
         plane.receiveShadow = true;
         scene.add(plane);
         
-        // --- Local Player's Car (Red Cube) ---
-        // Create car mesh
-        const cubeGeometry = new THREE.BoxGeometry(2, 1, 4);
-        const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-        cube.position.y = 1; // Start above ground level
-        cube.castShadow = true;
-        cube.receiveShadow = true;
-        scene.add(cube);
+        // Grid helper
+        const grid = new THREE.GridHelper(100, 100);
+        scene.add(grid);
         
-        // --- Demo Physics Box ---
+        // --- Physics Box for Collisions ---
+        // Physics body
+        const boxSize = { x: 2, y: 2, z: 2 };
+        const boxShape = new CANNON.Box(new CANNON.Vec3(boxSize.x/2, boxSize.y/2, boxSize.z/2));
+        const boxBody = new CANNON.Body({ 
+          mass: 5, 
+          position: new CANNON.Vec3(5, 10, 0),
+        });
+        boxBody.addShape(boxShape);
+        world.addBody(boxBody);
+        
+        // Three.js mesh
         const boxMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(2, 2, 2),
+          new THREE.BoxGeometry(boxSize.x, boxSize.y, boxSize.z),
           new THREE.MeshStandardMaterial({ color: 0x00ff00 })
         );
-        boxMesh.position.set(5, 10, 0);
+        boxMesh.position.copy(boxBody.position);
         boxMesh.castShadow = true;
         boxMesh.receiveShadow = true;
         scene.add(boxMesh);
         
-        // --- Additional Scene Object: Ramp ---
-        const rampGeometry = new THREE.BoxGeometry(10, 1, 20);
+        // --- Create Ramp ---
+        // Ramp physics body
+        const rampSize = { x: 10, y: 1, z: 20 };
+        const rampShape = new CANNON.Box(new CANNON.Vec3(rampSize.x/2, rampSize.y/2, rampSize.z/2));
+        const rampBody = new CANNON.Body({ 
+          mass: 0, 
+          position: new CANNON.Vec3(10, 0.5, -20)
+        });
+        rampBody.addShape(rampShape);
+        // Tilt the ramp
+        const angle = -Math.PI / 8;
+        rampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), angle);
+        world.addBody(rampBody);
+        
+        // Ramp Three.js mesh
+        const rampGeometry = new THREE.BoxGeometry(rampSize.x, rampSize.y, rampSize.z);
         const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
         const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
-        ramp.position.set(10, 0.5, -20);
-        ramp.rotation.x = -Math.PI / 8;
+        ramp.position.copy(rampBody.position);
+        ramp.quaternion.copy(rampBody.quaternion);
         ramp.castShadow = true;
         ramp.receiveShadow = true;
         scene.add(ramp);
+        
+        // Add some obstacles
+        const createObstacle = (x, z, size = 2) => {
+          const obstacleShape = new CANNON.Box(new CANNON.Vec3(size/2, size/2, size/2));
+          const obstacleBody = new CANNON.Body({
+            mass: 0, // Static object
+            position: new CANNON.Vec3(x, size/2, z)
+          });
+          obstacleBody.addShape(obstacleShape);
+          world.addBody(obstacleBody);
+          
+          const obstacleMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(size, size, size),
+            new THREE.MeshStandardMaterial({ color: 0xff6600 })
+          );
+          obstacleMesh.position.copy(obstacleBody.position);
+          obstacleMesh.castShadow = true;
+          obstacleMesh.receiveShadow = true;
+          scene.add(obstacleMesh);
+          
+          return { body: obstacleBody, mesh: obstacleMesh };
+        };
+        
+        // Create some obstacles
+        const obstacles = [
+          createObstacle(-15, -15, 3),
+          createObstacle(-5, 20, 2),
+          createObstacle(20, 15, 4)
+        ];
+        
+        // --- Player Car Setup ---
+        // Car physics body
+        const carSize = { x: 2, y: 1, z: 4 };
+        const carShape = new CANNON.Box(new CANNON.Vec3(carSize.x/2, carSize.y/2, carSize.z/2));
+        const carBody = new CANNON.Body({ 
+          mass: 200,
+          material: wheelPhysMaterial,
+          angularDamping: 0.5
+        });
+        carBody.addShape(carShape);
+        carBody.position.set(0, 2, 0);
+        world.addBody(carBody);
+        
+        // Car mesh
+        const cubeGeometry = new THREE.BoxGeometry(carSize.x, carSize.y, carSize.z);
+        const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+        cube.castShadow = true;
+        cube.receiveShadow = true;
+        scene.add(cube);
+        
+        // Add wheels visually (no physics separate from car body yet)
+        const wheelRadius = 0.4;
+        const wheelGeometry = new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.4, 16);
+        const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+        const wheels = [];
+        
+        // Wheel positions relative to car
+        const wheelPositions = [
+          { x: -0.9, y: -0.3, z: 1.2 },  // Front left
+          { x: 0.9, y: -0.3, z: 1.2 },   // Front right
+          { x: -0.9, y: -0.3, z: -1.2 }, // Rear left
+          { x: 0.9, y: -0.3, z: -1.2 }   // Rear right
+        ];
+        
+        wheelPositions.forEach(pos => {
+          const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+          wheel.position.set(pos.x, pos.y, pos.z);
+          wheel.rotation.z = Math.PI / 2; // Rotate to correct orientation
+          wheel.castShadow = true;
+          cube.add(wheel); // Attach to car
+          wheels.push(wheel);
+        });
         
         // --- Lighting ---
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -235,25 +364,21 @@
         directionalLight.shadow.camera.far = 500;
         scene.add(directionalLight);
     
-        // --- Movement Variables for the Local Player ---
+        // --- Movement Controls ---
         let keys = {};
         const carSettings = {
-          speed: 0,              // Current speed
-          maxSpeed: 0.5,         // Maximum speed
-          acceleration: 0.01,    // How quickly car speeds up
-          braking: 0.02,         // How quickly car slows down
-          deceleration: 0.005,   // Natural slowdown
-          turnSpeed: 0.03,       // How quickly car turns
-          gravity: 0.01,         // Gravity force
-          jumpForce: 0.3,        // How high car can jump
-          groundLevel: 1,        // Y position of ground
-          isGrounded: true,      // Is car on ground?
-          velocity: new THREE.Vector3(0, 0, 0)
+          engineForce: 0,        // Current engine force
+          maxForce: 1000,        // Maximum engine force
+          brakeForce: 0,         // Current brake force
+          maxBrakeForce: 50,     // Maximum brake force
+          steeringAngle: 0,      // Current steering angle
+          maxSteeringAngle: Math.PI/6, // Maximum steering angle
+          steeringSpeed: 0.05,   // How quickly steering changes
+          frictionForce: 0.03    // Natural friction slowdown
         };
     
         window.addEventListener('keydown', e => {
           keys[e.key] = true;
-          console.log("Key pressed:", e.key); // Debug
         });
         window.addEventListener('keyup', e => keys[e.key] = false);
     
@@ -265,10 +390,10 @@
           try {
             await supabaseClient.from('editors').upsert([{
               player_id: playerId,
-              x: cube.position.x,
-              y: cube.position.y,
-              z: cube.position.z,
-              rotation: cube.rotation.y,
+              x: carBody.position.x,
+              y: carBody.position.y,
+              z: carBody.position.z,
+              rotation: carBody.quaternion,
             }], { onConflict: ['player_id'] });
           } catch (err) {
             console.error("Error registering player:", err);
@@ -279,9 +404,9 @@
         async function updatePlayerState() {
           try {
             await supabaseClient.from('editors').update({
-              x: cube.position.x,
-              y: cube.position.y,
-              z: cube.position.z,
+              x: carBody.position.x,
+              y: carBody.position.y,
+              z: carBody.position.z,
               rotation: cube.rotation.y,
             }).match({ player_id: playerId });
           } catch (err) {
@@ -310,6 +435,16 @@
                 car.receiveShadow = true;
                 car.userData.target = { x: p.x, y: p.y, z: p.z, rotation: p.rotation };
                 car.userData.chatLabel = null;
+                
+                // Add wheels to other players' cars too
+                wheelPositions.forEach(pos => {
+                  const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                  wheel.position.set(pos.x, pos.y, pos.z);
+                  wheel.rotation.z = Math.PI / 2;
+                  wheel.castShadow = true;
+                  car.add(wheel);
+                });
+                
                 scene.add(car);
                 otherPlayers[p.player_id] = car;
               } else {
@@ -380,130 +515,131 @@
         }
         setInterval(checkIdleTimeout, 10000);
         
-        // --- Basic Physics for Demo Box ---
-        let boxVelocity = new THREE.Vector3(0, 0, 0);
-        
         // --- Unified Animation Loop ---
         let prevTime;
         let lastUpdate = Date.now();
-    
+        const timeStep = 1/60; // Fixed time step for physics
+        
         function animate(time) {
           requestAnimationFrame(animate);
           
           const deltaTime = prevTime ? (time - prevTime) / 1000 : 0;
           prevTime = time;
           
-          // --- Car Movement (Simplified Physics) ---
+          // Update physics world
+          world.step(timeStep);
+          
+          // --- Car Movement with CANNON.js Physics ---
           if (!chatMode) {
-            // Handle key inputs
+            // Reset forces
+            carBody.force.set(0, 0, 0);
+            carBody.angularVelocity.set(0, 0, 0);
+            
+            // Get car's forward direction vector
+            const carRotation = carBody.quaternion;
+            const forwardVec = new CANNON.Vec3(0, 0, -1);
+            forwardVec.applyQuaternion(carRotation);
+            
             // Forward/backward movement
             if (keys["ArrowUp"] || keys["w"]) {
-              carSettings.speed += carSettings.acceleration;
+              // Apply force in car's forward direction
+              const force = forwardVec.scale(carSettings.maxForce);
+              carBody.applyForce(force, carBody.position);
               lastMovementTime = Date.now();
             } else if (keys["ArrowDown"] || keys["s"]) {
-              carSettings.speed -= carSettings.acceleration;
+              // Apply force in car's backward direction
+              const force = forwardVec.scale(-carSettings.maxForce * 0.5);
+              carBody.applyForce(force, carBody.position);
               lastMovementTime = Date.now();
-            } else {
-              // Natural deceleration when no keys pressed
-              if (carSettings.speed > 0) {
-                carSettings.speed -= carSettings.deceleration;
-                if (carSettings.speed < 0) carSettings.speed = 0;
-              } else if (carSettings.speed < 0) {
-                carSettings.speed += carSettings.deceleration;
-                if (carSettings.speed > 0) carSettings.speed = 0;
-              }
             }
             
-            // Speed limits
-            if (carSettings.speed > carSettings.maxSpeed) carSettings.speed = carSettings.maxSpeed;
-            if (carSettings.speed < -carSettings.maxSpeed/2) carSettings.speed = -carSettings.maxSpeed/2;
-            
-            // Turning (only when moving)
-            if (Math.abs(carSettings.speed) > 0.01) {
-              if (keys["ArrowLeft"] || keys["a"]) {
-                cube.rotation.y += carSettings.turnSpeed;
-                lastMovementTime = Date.now();
-              }
-              if (keys["ArrowRight"] || keys["d"]) {
-                cube.rotation.y -= carSettings.turnSpeed;
+            // Apply braking
+            if (keys[" "]) {
+              // Calculate opposite direction to velocity
+              const vel = carBody.velocity.length();
+              if (vel > 0.1) {
+                const brakeDir = carBody.velocity.clone().normalize().scale(-1);
+                const brakeForce = brakeDir.scale(carSettings.maxBrakeForce);
+                carBody.applyForce(brakeForce, carBody.position);
                 lastMovementTime = Date.now();
               }
             }
             
-            // Apply movement in the direction the car is facing
-            const direction = new THREE.Vector3(0, 0, -1);
-            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), cube.rotation.y);
-            direction.multiplyScalar(carSettings.speed);
-            
-            // Update position based on speed and direction
-            cube.position.x += direction.x;
-            cube.position.z += direction.z;
-            
-            // Simple gravity and ground collision
-            if (cube.position.y > carSettings.groundLevel) {
-              carSettings.velocity.y -= carSettings.gravity;
-              cube.position.y += carSettings.velocity.y;
-            } else {
-              cube.position.y = carSettings.groundLevel;
-              carSettings.velocity.y = 0;
-              carSettings.isGrounded = true;
+            // Turning
+            if (keys["ArrowLeft"] || keys["a"]) {
+              // Apply torque for left turn
+              carBody.applyTorque(new CANNON.Vec3(0, carSettings.maxSteeringAngle, 0));
+              lastMovementTime = Date.now();
             }
-            
-            // Space to jump (when on ground)
-            if ((keys[" "] || keys["Space"]) && carSettings.isGrounded) {
-              carSettings.velocity.y = carSettings.jumpForce;
-              carSettings.isGrounded = false;
+            if (keys["ArrowRight"] || keys["d"]) {
+              // Apply torque for right turn
+              carBody.applyTorque(new CANNON.Vec3(0, -carSettings.maxSteeringAngle, 0));
               lastMovementTime = Date.now();
             }
             
-            // Simple ramp collision detection (very basic)
-            if (cube.position.x > 5 && cube.position.x < 15 && 
-                cube.position.z < -10 && cube.position.z > -30) {
-              // Calculate height based on position on ramp
-              const rampZ = (cube.position.z + 20) / -20; // 0 at start of ramp, 1 at end
-              const rampHeight = 1 + rampZ * 2;
-              
-              if (cube.position.y < rampHeight) {
-                cube.position.y = rampHeight;
-                carSettings.velocity.y = 0;
-                carSettings.isGrounded = true;
+            // Simple friction to slow down when not accelerating
+            if (!keys["ArrowUp"] && !keys["w"] && !keys["ArrowDown"] && !keys["s"]) {
+              const vel = carBody.velocity.clone();
+              if (vel.length() > 0.1) {
+                const frictionForce = vel.normalize().scale(-carSettings.frictionForce * carBody.mass);
+                carBody.applyForce(frictionForce, carBody.position);
               }
+            }
+            
+            // Jump with spacebar only if near ground
+            if (keys["Space"] && carBody.position.y < 2) {
+              carBody.applyImpulse(new CANNON.Vec3(0, 300, 0), carBody.position);
+              lastMovementTime = Date.now();
             }
           }
           
-          // --- Simple physics for demo box ---
-          boxVelocity.y -= 0.01; // Gravity
-          boxMesh.position.x += boxVelocity.x;
-          boxMesh.position.y += boxVelocity.y;
-          boxMesh.position.z += boxVelocity.z;
+          // Update debug info
+          debugInfo.textContent = `
+            Velocity: ${Math.round(carBody.velocity.length() * 100) / 100} m/s
+            Position: ${Math.round(carBody.position.x)}, ${Math.round(carBody.position.y)}, ${Math.round(carBody.position.z)}
+            Wheels on ground: ${carBody.position.y < 2 ? "Yes" : "No"}
+          `;
           
-          // Ground collision for box
-          if (boxMesh.position.y < 1) {
-            boxMesh.position.y = 1;
-            boxVelocity.y = -boxVelocity.y * 0.5; // Bounce with energy loss
-            // Apply friction to horizontal movement
-            boxVelocity.x *= 0.9;
-            boxVelocity.z *= 0.9;
-          }
+          // --- Sync ThreeJS objects with CANNON.js physics ---
+          // Update car mesh position
+          cube.position.copy(carBody.position);
+          cube.quaternion.copy(carBody.quaternion);
+          
+          // Update box mesh position
+          boxMesh.position.copy(boxBody.position);
+          boxMesh.quaternion.copy(boxBody.quaternion);
           
           // --- Camera Follow ---
           // Position camera behind car
-          const cameraOffset = new THREE.Vector3(0, 3, 10);
-          cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), cube.rotation.y);
+          const cameraOffset = new THREE.Vector3(0, 5, 15);
+          const carQuaternion = new THREE.Quaternion().copy(carBody.quaternion);
+          cameraOffset.applyQuaternion(carQuaternion);
           
           camera.position.set(
-            cube.position.x + cameraOffset.x,
-            cube.position.y + cameraOffset.y,
-            cube.position.z + cameraOffset.z
+            carBody.position.x + cameraOffset.x,
+            carBody.position.y + cameraOffset.y,
+            carBody.position.z + cameraOffset.z
           );
-          camera.lookAt(cube.position);
+          camera.lookAt(new THREE.Vector3(carBody.position.x, carBody.position.y, carBody.position.z));
     
           // --- Remote Players Interpolation ---
           Object.values(otherPlayers).forEach(car => {
             const target = car.userData.target;
             if (!target) return;
             car.position.lerp(new THREE.Vector3(target.x, target.y, target.z), 0.1);
-            car.rotation.y += (target.rotation - car.rotation.y) * 0.1;
+            
+            // If rotation is a quaternion
+            if (target.rotation && target.rotation._x !== undefined) {
+              car.quaternion.slerp(new THREE.Quaternion(
+                target.rotation._x, 
+                target.rotation._y, 
+                target.rotation._z, 
+                target.rotation._w
+              ), 0.1);
+            } else if (typeof target.rotation === 'number') {
+              // If rotation is just a y-angle
+              car.rotation.y += (target.rotation - car.rotation.y) * 0.1;
+            }
           });
     
           // --- Update Local Player State Every 50ms ---
