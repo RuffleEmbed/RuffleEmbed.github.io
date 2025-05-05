@@ -1,20 +1,4 @@
-// Load SAM.js if available (added at runtime)
-        function loadSamJS() {
-            if (typeof speak === 'undefined') {
-                const script = document.createElement('script');
-                script.src = "https://cdnjs.cloudflare.com/ajax/libs/speak.js/0.2/speak.js";
-                script.onload = function() {
-                    console.log("SAM voice library loaded");
-                };
-                script.onerror = function() {
-                    console.log("Failed to load SAM voice library");
-                };
-                document.head.appendChild(script);
-            }
-        }
-        
-        // Attempt to load SAM.js
-        loadSamJS();<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -119,7 +103,7 @@
     <div class="container">
         <h1>Stanley AI Voice Assistant</h1>
         <div style="text-align: center; margin-bottom: 15px; color: #e74c3c;">
-            <small>RETRO SAM-STYLE VOICE MODE ENABLED</small>
+            <small>CLASSIC 80s COMPUTER VOICE ENABLED</small>
         </div>
         
         <div class="controls">
@@ -173,8 +157,22 @@
         let audioChunks = [];
         let recordingTimeout;
         
-        // Speech synthesis
+        // Initialize speech synthesis
         const synth = window.speechSynthesis;
+        
+        // Wait for voices to be loaded
+        let voices = [];
+        function populateVoiceList() {
+            voices = synth.getVoices();
+            console.log("Available voices:", voices.map(v => v.name).join(", "));
+        }
+        
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = populateVoiceList;
+        }
+        
+        // Initial population of voice list
+        populateVoiceList();
         
         // Check for browser support
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -380,9 +378,11 @@
                 try {
                     speak(processedText, {
                         amplitude: 100,   // Volume
-                        pitch: 60,        // Pitch
-                        speed: 70,        // Speed
+                        pitch: 64,        // Pitch (lower for male voice)
+                        speed: 72,        // Speed
                         wordgap: 0,       // Word gap
+                        throat: 130,      // Throat - higher for male voice
+                        mouth: 128,       // Mouth - adjust for male voice
                         variant: 'klatt'  // The "electronic" variant
                     });
                     statusElement.innerText = "Speaking (SAM-style)...";
@@ -399,18 +399,25 @@
             // Get all available voices
             const voices = synth.getVoices();
             
-            // Try to find a voice that can sound SAM-like when modified
+            // Try to find a male voice
+            let maleVoice = null;
             for (const voice of voices) {
-                // Prefer voices with names suggesting an electronic/synthetic quality
-                if (voice.name.includes("US") || voice.name.includes("English")) {
-                    utterance.voice = voice;
+                // Look for explicitly male voices
+                if (voice.name.includes("Male") || voice.name.includes("David") || 
+                    voice.name.includes("Daniel") || voice.name.includes("Google UK English Male")) {
+                    maleVoice = voice;
                     break;
                 }
             }
             
-            // SAM-like settings:
-            utterance.pitch = 1.5;       // Higher pitch (SAM had a high-pitched voice)
-            utterance.rate = 0.8;        // Slower rate (SAM spoke deliberately)
+            // If we found a male voice, use it
+            if (maleVoice) {
+                utterance.voice = maleVoice;
+            }
+            
+            // SAM-like settings adjusted for male voice:
+            utterance.pitch = 0.9;       // Lower pitch for male voice
+            utterance.rate = 0.75;       // Slower rate for mechanical sound
             utterance.volume = 1.0;      // Full volume
             
             synth.speak(utterance);
@@ -443,15 +450,15 @@
                 result = result.substring(0, position) + codeReference + result.substring(position);
             }
             
-            // SAM-style phonetic spellings (simplified)
+            // More exaggerated SAM-style phonetic spellings
             // This simulates SAM's characteristic pronunciation
             result = result
-                .replace(/th/g, "t-h")
-                .replace(/the/g, "t-hu")
-                .replace(/ing/g, "eeng")
-                .replace(/you/g, "yoo")
-                .replace(/i/g, "ai")
-                .replace(/ow/g, "oh-w");
+                .replace(/th/g, "t h")
+                .replace(/the/g, "thuh")
+                .replace(/ing/g, "ing")
+                .replace(/you/g, "you")
+                .replace(/are/g, "ar")
+                .replace(/[aeiou]{2,}/g, match => match.split('').join(' ')); // Split consecutive vowels
                 
             return result;
         }
