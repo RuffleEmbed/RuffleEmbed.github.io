@@ -97,6 +97,15 @@
             border: 1px solid #ddd;
             border-radius: 4px;
         }
+        .voice-settings {
+            margin-top: 10px;
+        }
+        .voice-settings select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -116,6 +125,11 @@
             <h3>Settings</h3>
             <label for="apiKey">Groq API Key:</label>
             <input type="password" id="apiKey" placeholder="Enter your Groq API Key">
+            
+            <div class="voice-settings">
+                <label for="voiceSelect">Voice:</label>
+                <select id="voiceSelect"></select>
+            </div>
         </div>
     </div>
 
@@ -126,6 +140,7 @@
         const statusElement = document.getElementById('status');
         const conversationElement = document.getElementById('conversation');
         const apiKeyInput = document.getElementById('apiKey');
+        const voiceSelect = document.getElementById('voiceSelect');
         
         // Memory storage
         let memory = [];
@@ -137,6 +152,85 @@
         
         // Speech synthesis
         const synth = window.speechSynthesis;
+        let selectedVoice = null;
+        
+        // Initialize voices
+        function initVoices() {
+            return new Promise((resolve) => {
+                // Chrome loads voices asynchronously
+                if (synth.getVoices().length) {
+                    resolve(synth.getVoices());
+                    return;
+                }
+                
+                synth.onvoiceschanged = () => {
+                    resolve(synth.getVoices());
+                };
+            });
+        }
+        
+        // Log available voices to console for debugging
+        function logAvailableVoices() {
+            const voices = synth.getVoices();
+            console.log("Available voices:", voices.length);
+            voices.forEach((voice, index) => {
+                console.log(`${index}: ${voice.name} (${voice.lang})${voice.default ? ' - DEFAULT' : ''}`);
+            });
+        }
+        
+        // Populate voice dropdown with available voices
+        async function populateVoiceList() {
+            const voices = await initVoices();
+            
+            // Clear existing options
+            voiceSelect.innerHTML = '';
+            
+            // Find and preselect a UK male voice if available
+            let ukMaleVoiceIndex = -1;
+            
+            // Add all voices to the dropdown
+            voices.forEach((voice, i) => {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `${voice.name} (${voice.lang})`;
+                
+                // Check if this is a UK English voice
+                if (voice.lang.includes('en-GB')) {
+                    // Check if it's likely a male voice based on name
+                    if (voice.name.toLowerCase().includes('male') || 
+                        voice.name.toLowerCase().includes('daniel') ||
+                        voice.name.toLowerCase().includes('george') ||
+                        voice.name.toLowerCase().includes('james')) {
+                        ukMaleVoiceIndex = i;
+                    } else if (ukMaleVoiceIndex === -1) {
+                        // Fallback to any UK voice
+                        ukMaleVoiceIndex = i;
+                    }
+                }
+                
+                voiceSelect.appendChild(option);
+            });
+            
+            // Set the UK voice as selected if found
+            if (ukMaleVoiceIndex !== -1) {
+                voiceSelect.selectedIndex = ukMaleVoiceIndex;
+                selectedVoice = voices[ukMaleVoiceIndex];
+            }
+            
+            // Log voices for debugging
+            logAvailableVoices();
+        }
+        
+        // Event listener for voice selection
+        voiceSelect.addEventListener('change', () => {
+            const voices = synth.getVoices();
+            selectedVoice = voices[voiceSelect.value];
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            populateVoiceList();
+        });
         
         // Check for browser support
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -328,14 +422,54 @@
             return data.choices[0].message.content;
         }
         
-        // Speak text using browser's speech synthesis
+        // Speak text using browser's speech synthesis with UK male voice preference
         function speakText(text) {
             if (synth.speaking) {
                 synth.cancel();
-                speechSynthesis.getVoices()
             }
             
             const utterance = new SpeechSynthesisUtterance(text);
+            
+            // Use selected voice from dropdown if available
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            } else {
+                // Fallback to automatic selection
+                const voices = synth.getVoices();
+                
+                // Look for a UK male voice
+                let ukMaleVoice = null;
+                
+                // First preference: Find a UK English male voice
+                ukMaleVoice = voices.find(voice => 
+                    voice.lang.includes('en-GB') && 
+                    (voice.name.toLowerCase().includes('male') ||
+                     voice.name.toLowerCase().includes('daniel') ||
+                     voice.name.toLowerCase().includes('george') ||
+                     voice.name.toLowerCase().includes('james'))
+                );
+                
+                // Second preference: Any UK English voice
+                if (!ukMaleVoice) {
+                    ukMaleVoice = voices.find(voice => 
+                        voice.lang.includes('en-GB')
+                    );
+                }
+                
+                // Third preference: Any male English voice
+                if (!ukMaleVoice) {
+                    ukMaleVoice = voices.find(voice => 
+                        voice.lang.includes('en') && 
+                        voice.name.toLowerCase().includes('male')
+                    );
+                }
+                
+                // Set the voice if found
+                if (ukMaleVoice) {
+                    utterance.voice = ukMaleVoice;
+                }
+            }
+            
             utterance.rate = 1.0;
             utterance.pitch = 1.0;
             
@@ -363,4 +497,4 @@
         }
     </script>
 </body>
-</html>
+</html>o
