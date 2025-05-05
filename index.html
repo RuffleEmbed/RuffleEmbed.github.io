@@ -266,8 +266,7 @@
             formData.append('file', audioBlob, 'recording.wav');
             formData.append('model', 'whisper-large-v3-turbo');
             formData.append('prompt', 'Specify context or spelling');
-            formData.append('response_format', 'verbose_json');
-            formData.append('timestamp_granularities', JSON.stringify(['word', 'segment']));
+            formData.append('response_format', 'text');
             formData.append('language', 'en');
             formData.append('temperature', 0.0);
             
@@ -284,8 +283,15 @@
                 throw new Error(`Transcription failed: ${error}`);
             }
             
-            const data = await response.json();
-            return data.text;
+            // Handle different response formats
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
+                return data.text || data;
+            } else {
+                // If response is plain text
+                return await response.text();
+            }
         }
         
         // Generate response using Groq API
