@@ -100,11 +100,39 @@
         .voice-settings {
             margin-top: 10px;
         }
-        .voice-settings select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+        .voice-settings label {
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .voice-settings input {
+            width: auto;
+            margin-right: 20px;
+        }
+        /* Audio effect sliders */
+        .audio-effects {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+        }
+        .audio-effects h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .slider-container {
+            margin-bottom: 10px;
+        }
+        .slider-container label {
+            display: inline-block;
+            width: 120px;
+        }
+        .slider-container input {
+            width: 200px;
+            display: inline-block;
+        }
+        .slider-value {
+            display: inline-block;
+            width: 40px;
+            text-align: right;
         }
     </style>
 </head>
@@ -127,8 +155,29 @@
             <input type="password" id="apiKey" placeholder="Enter your Groq API Key">
             
             <div class="voice-settings">
-                <label for="voiceSelect">Voice:</label>
-                <select id="voiceSelect"></select>
+                <h4>Voice Settings</h4>
+                <div class="slider-container">
+                    <label for="rateSlider">Rate:</label>
+                    <input type="range" id="rateSlider" min="0.5" max="1.0" step="0.1" value="0.8">
+                    <span id="rateValue" class="slider-value">0.8</span>
+                </div>
+                <div class="slider-container">
+                    <label for="pitchSlider">Pitch:</label>
+                    <input type="range" id="pitchSlider" min="0.5" max="1.5" step="0.1" value="0.9">
+                    <span id="pitchValue" class="slider-value">0.9</span>
+                </div>
+            </div>
+            
+            <div class="audio-effects">
+                <h4>Robotic Voice Effects</h4>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="chopEffect" checked>
+                    <label for="chopEffect">Word Chopping Effect</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="pauseEffect" checked>
+                    <label for="pauseEffect">Robotic Pauses</label>
+                </div>
             </div>
         </div>
     </div>
@@ -140,7 +189,23 @@
         const statusElement = document.getElementById('status');
         const conversationElement = document.getElementById('conversation');
         const apiKeyInput = document.getElementById('apiKey');
-        const voiceSelect = document.getElementById('voiceSelect');
+        
+        // Voice effect controls
+        const rateSlider = document.getElementById('rateSlider');
+        const pitchSlider = document.getElementById('pitchSlider');
+        const rateValue = document.getElementById('rateValue');
+        const pitchValue = document.getElementById('pitchValue');
+        const chopEffect = document.getElementById('chopEffect');
+        const pauseEffect = document.getElementById('pauseEffect');
+        
+        // Update slider value displays
+        rateSlider.addEventListener('input', () => {
+            rateValue.textContent = rateSlider.value;
+        });
+        
+        pitchSlider.addEventListener('input', () => {
+            pitchValue.textContent = pitchSlider.value;
+        });
         
         // Memory storage
         let memory = [];
@@ -152,20 +217,40 @@
         
         // Speech synthesis
         const synth = window.speechSynthesis;
-        let selectedVoice = null;
+        let googleVoice = null;
         
-        // Initialize voices
+        // Initialize voices and find Google US English voice
         function initVoices() {
             return new Promise((resolve) => {
                 // Chrome loads voices asynchronously
-                if (synth.getVoices().length) {
-                    resolve(synth.getVoices());
-                    return;
-                }
-                
-                synth.onvoiceschanged = () => {
-                    resolve(synth.getVoices());
+                const checkVoices = () => {
+                    const voices = synth.getVoices();
+                    if (voices.length) {
+                        // Find Google US English voice
+                        googleVoice = voices.find(voice => 
+                            voice.name.includes('Google US English') || 
+                            (voice.name.includes('Google') && voice.lang === 'en-US')
+                        );
+                        
+                        // Log found voice
+                        if (googleVoice) {
+                            console.log("Found Google voice:", googleVoice.name);
+                        } else {
+                            console.log("Google US English voice not found, will use default voice");
+                        }
+                        
+                        resolve(voices);
+                        return;
+                    }
+                    
+                    setTimeout(checkVoices, 100);
                 };
+                
+                if (synth.getVoices().length) {
+                    checkVoices();
+                } else {
+                    synth.onvoiceschanged = checkVoices;
+                }
             });
         }
         
@@ -178,58 +263,10 @@
             });
         }
         
-        // Populate voice dropdown with available voices
-        async function populateVoiceList() {
-            const voices = await initVoices();
-            
-            // Clear existing options
-            voiceSelect.innerHTML = '';
-            
-            // Find and preselect a UK male voice if available
-            let ukMaleVoiceIndex = -1;
-            
-            // Add all voices to the dropdown
-            voices.forEach((voice, i) => {
-                const option = document.createElement('option');
-                option.value = i;
-                option.textContent = `${voice.name} (${voice.lang})`;
-                
-                // Check if this is a UK English voice
-                if (voice.lang.includes('en-GB')) {
-                    // Check if it's likely a male voice based on name
-                    if (voice.name.toLowerCase().includes('male') || 
-                        voice.name.toLowerCase().includes('daniel') ||
-                        voice.name.toLowerCase().includes('george') ||
-                        voice.name.toLowerCase().includes('james')) {
-                        ukMaleVoiceIndex = i;
-                    } else if (ukMaleVoiceIndex === -1) {
-                        // Fallback to any UK voice
-                        ukMaleVoiceIndex = i;
-                    }
-                }
-                
-                voiceSelect.appendChild(option);
-            });
-            
-            // Set the UK voice as selected if found
-            if (ukMaleVoiceIndex !== -1) {
-                voiceSelect.selectedIndex = ukMaleVoiceIndex;
-                selectedVoice = voices[ukMaleVoiceIndex];
-            }
-            
-            // Log voices for debugging
-            logAvailableVoices();
-        }
-        
-        // Event listener for voice selection
-        voiceSelect.addEventListener('change', () => {
-            const voices = synth.getVoices();
-            selectedVoice = voices[voiceSelect.value];
-        });
-        
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            populateVoiceList();
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initVoices();
+            logAvailableVoices();
         });
         
         // Check for browser support
@@ -407,7 +444,7 @@
                         {
                             role: "user",
                             content: "you are a helpful ai assistant. you keep everything short." + 
-                            "this is what aiden said:" + userInput + "\n" + memoryText
+                            "user said:" + userInput + "\n" + memoryText
                         }
                     ]
                 })
@@ -422,63 +459,132 @@
             return data.choices[0].message.content;
         }
         
-        // Speak text using browser's speech synthesis with UK male voice preference
+        // Add robotic effects to text
+        function robotizeText(text) {
+            if (!chopEffect.checked && !pauseEffect.checked) {
+                return text;
+            }
+            
+            let roboticText = text;
+            
+            if (pauseEffect.checked) {
+                // Add random pauses with SSML-like syntax
+                roboticText = roboticText.replace(/([.!?])\s+/g, '$1 <break time="500ms"> ');
+                roboticText = roboticText.replace(/([,;:])\s+/g, '$1 <break time="300ms"> ');
+                
+                // Add occasional pauses between words (10% chance)
+                const words = roboticText.split(' ');
+                roboticText = words.map(word => {
+                    if (Math.random() < 0.1) {
+                        return word + ' <break time="200ms">';
+                    }
+                    return word;
+                }).join(' ');
+            }
+            
+            if (chopEffect.checked) {
+                // Create choppy effect by adding space between some words
+                const words = roboticText.split(' ');
+                roboticText = words.map(word => {
+                    // 20% chance of chopping a word
+                    if (word.length > 4 && Math.random() < 0.2) {
+                        const chopPoint = Math.floor(word.length / 2);
+                        return word.substring(0, chopPoint) + ' ' + word.substring(chopPoint);
+                    }
+                    return word;
+                }).join(' ');
+            }
+            
+            return roboticText;
+        }
+        
+        // Process text through chunking for robotic effect
+        function chunkText(text) {
+            // Replace SSML-like pauses with actual pauses in speech
+            const chunks = [];
+            let currentChunk = '';
+            
+            // Parse our custom break tags
+            const parts = text.split(/<break time="(\d+)ms">/);
+            
+            for (let i = 0; i < parts.length; i++) {
+                if (i % 2 === 0) {
+                    // Text part
+                    currentChunk += parts[i];
+                } else {
+                    // This is a pause duration
+                    chunks.push({
+                        text: currentChunk,
+                        type: 'text'
+                    });
+                    currentChunk = '';
+                    
+                    // Add pause
+                    chunks.push({
+                        duration: parseInt(parts[i]),
+                        type: 'pause'
+                    });
+                }
+            }
+            
+            // Add any remaining text
+            if (currentChunk) {
+                chunks.push({
+                    text: currentChunk,
+                    type: 'text'
+                });
+            }
+            
+            return chunks;
+        }
+        
+        // Speak text using browser's speech synthesis with robotic voice effect
         function speakText(text) {
             if (synth.speaking) {
                 synth.cancel();
             }
             
-            const utterance = new SpeechSynthesisUtterance(text);
+            // Apply robotic text effects
+            const robotizedText = robotizeText(text);
             
-            // Use selected voice from dropdown if available
-            if (selectedVoice) {
-                utterance.voice = selectedVoice;
-            } else {
-                // Fallback to automatic selection
-                const voices = synth.getVoices();
-                
-                // Look for a UK male voice
-                let ukMaleVoice = null;
-                
-                // First preference: Find a UK English male voice
-                ukMaleVoice = voices.find(voice => 
-                    voice.lang.includes('en-GB') && 
-                    (voice.name.toLowerCase().includes('male') ||
-                     voice.name.toLowerCase().includes('daniel') ||
-                     voice.name.toLowerCase().includes('george') ||
-                     voice.name.toLowerCase().includes('james'))
-                );
-                
-                // Second preference: Any UK English voice
-                if (!ukMaleVoice) {
-                    ukMaleVoice = voices.find(voice => 
-                        voice.lang.includes('en-GB')
-                    );
+            // Process text into chunks for robotic delivery
+            const chunks = chunkText(robotizedText);
+            
+            statusElement.innerText = "Speaking...";
+            
+            // Process chunks sequentially
+            let chunkIndex = 0;
+            
+            function processNextChunk() {
+                if (chunkIndex >= chunks.length) {
+                    statusElement.innerText = "";
+                    return;
                 }
                 
-                // Third preference: Any male English voice
-                if (!ukMaleVoice) {
-                    ukMaleVoice = voices.find(voice => 
-                        voice.lang.includes('en') && 
-                        voice.name.toLowerCase().includes('male')
-                    );
-                }
+                const chunk = chunks[chunkIndex++];
                 
-                // Set the voice if found
-                if (ukMaleVoice) {
-                    utterance.voice = ukMaleVoice;
+                if (chunk.type === 'pause') {
+                    // This is a pause
+                    setTimeout(processNextChunk, chunk.duration);
+                } else {
+                    // This is text to speak
+                    const utterance = new SpeechSynthesisUtterance(chunk.text);
+                    
+                    // Use Google US English voice if found
+                    if (googleVoice) {
+                        utterance.voice = googleVoice;
+                    }
+                    
+                    // Apply robotic voice settings
+                    utterance.rate = parseFloat(rateSlider.value);
+                    utterance.pitch = parseFloat(pitchSlider.value);
+                    
+                    utterance.onend = processNextChunk;
+                    synth.speak(utterance);
                 }
             }
             
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-            
-            synth.speak(utterance);
-            statusElement.innerText = "Speaking...";
-            
-            utterance.onend = () => {
-                statusElement.innerText = "";
-            };
+            processNextChunk();
         }
         
         // Add message to conversation UI
@@ -497,4 +603,4 @@
         }
     </script>
 </body>
-</html>o
+</html>
