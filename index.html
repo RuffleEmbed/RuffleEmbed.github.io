@@ -327,6 +327,7 @@
         function speakText(text) {
             if (synth.speaking) {
                 synth.cancel();
+            speechSynthesis.getVoices()
             }
             
             const utterance = new SpeechSynthesisUtterance(text);
