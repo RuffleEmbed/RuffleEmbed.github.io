@@ -58,7 +58,6 @@
         }
       }
     </script>
-    
   </head>
   <body>
     <!-- Global Chat Log and Input -->
@@ -93,25 +92,28 @@
           chatInput.focus();
           return;
         }
-        .settings {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f9f9f9;
-            border-radius: 5px;
-            border: 1px solid #ddd;
+        if (e.key === "Enter" && chatMode && document.activeElement === chatInput) {
+          e.preventDefault();
+          const message = chatInput.value.trim();
+          if (message !== "") {
+            sendMessage(message);
+          }
+          chatInput.value = "";
+          chatInput.blur();
+          chatInput.style.display = "none";
+          chatMode = false;
         }
-        .settings h3 {
-            margin-top: 0;
+        if (chatMode && e.key !== "Enter") {
+          e.stopPropagation();
         }
-        .settings label {
-            display: block;
-            margin: 10px 0 5px;
-        }
-        .settings input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+      });
+      
+      // Send a chat message to Supabase
+      async function sendMessage(text) {
+        try {
+          await supabaseClient.from('messages').insert([{ player_id: playerId, text }]);
+        } catch (err) {
+          console.error("Failed to send message:", err);
         }
       }
       
@@ -176,7 +178,6 @@ scene.add(grid);
 const texture = new THREE.TextureLoader().load('/grass.png');
 texture.wrapS = THREE.RepeatWrapping;
 texture.wrapT = THREE.RepeatWrapping;
-texture.colorSpace = THREE.SRGBColorSpace;
 texture.repeat.set(12, 12);
 
 // Create material with the texture
@@ -198,13 +199,11 @@ scene.add(plane);
         scene.add(cube);
         
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); 
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
         directionalLight.position.set(10, 20, 10);
         scene.add(directionalLight);
-
         
         camera.position.set(0, 10, 15);
         camera.lookAt(0, 0, 0);
@@ -234,33 +233,20 @@ scene.add(plane);
             console.error("Error registering player:", err);
           }
         }
-        // Ramp setup
-      const rampGeometry = new THREE.BoxGeometry(10, 1, 20); // width, height, depth
-      const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Brown ramp
-      const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
-
-// Position and rotate ramp
-    ramp.position.set(10, 0.5, -20); // Adjust position as needed
-    ramp.rotation.x = -Math.PI / 8;  // Tilt to create a ramp angle (~22.5 degrees)
-    scene.add(ramp);
-
         async function checkIdleTimeout() {
-  const now = Date.now();
-  const idleTime = now - lastMovementTime;
+          const now = Date.now();
+          const idleTime = now - lastMovementTime;
 
-  if (idleTime > 2 * 60 * 1000) { // 2 minutes
-    await supabaseClient.from('messages').insert([{
-      player_id: playerId,
-      text: "was kicked due to inactivity."
-    }]);
+          if (idleTime > 2 * 60 * 1000) { // 2 minutes
+            await supabaseClient.from('messages').insert([{ player_id, text: "was kicked due to inactivity." }]);
 
-    await supabaseClient.from('editors').delete().match({ player_id: playerId });
-
-    alert("You were kicked due to inactivity.");
-    location.reload();
-  }
+        supabaseClient.from('editors').delete().match({ player_id: playerId })
+          .then(() => {
+          alert("You were kicked due to inactivity.");
+          location.reload();
+        });
+    }
 }
-
 
 setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
 
@@ -384,5 +370,5 @@ setInterval(checkIdleTimeout, 10000); // Check every 10 seconds
         animate();
       });
     </script>
-</body>
+  </body>
 </html>
